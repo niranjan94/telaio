@@ -1,0 +1,39 @@
+{
+  "name": "telaio",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "tsc",
+    "format": "biome check --write --unsafe",
+    "test": "biome check && vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [],
+  "author": "Niranjan Rajendran (https://github.com/niranjan94)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/niranjan94/telaio.git"
+  },
+  "homepage": "https://github.com/niranjan94/telaio#readme",
+  "bugs": {
+    "url": "https://github.com/niranjan94/telaio/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": { },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.4",
+    "@tsconfig/node24": "^24.0.4",
+    "@types/node": "^24.10.13",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  }
+}
