@@ -5,7 +5,7 @@ import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { registerBuildCommand } from '../build.js';
 import { registerDbTypesCommand } from '../db-types.js';
-import { registerDevCommand } from '../dev.js';
+import { parseAddFlag, readDevConfig, registerDevCommand } from '../dev.js';
 import { registerGenClientCommand } from '../gen-client.js';
 import { registerInitCommand } from '../init.js';
 import { registerMigrateCommand } from '../migrate.js';
@@ -58,8 +58,11 @@ describe('CLI command registration', () => {
   it('registers dev command', () => {
     const program = new Command();
     registerDevCommand(program);
-    // Dev command is registered (even as placeholder)
-    expect(program).toBeDefined();
+    const cmd = program.commands.find((c) => c.name() === 'dev');
+    expect(cmd).toBeDefined();
+    expect(cmd?.description()).toBe(
+      'Run development processes concurrently with prefixed output',
+    );
   });
 });
 
@@ -168,5 +171,84 @@ describe('telaio migrate create', () => {
     );
     expect(content).toContain('export async function up');
     expect(content).toContain('export async function down');
+  });
+});
+
+describe('telaio dev helpers', () => {
+  describe('parseAddFlag', () => {
+    it('parses "name:command" format', () => {
+      const result = parseAddFlag('api:tsx watch src/server.ts');
+      expect(result).toEqual({
+        name: 'api',
+        command: 'tsx watch src/server.ts',
+      });
+    });
+
+    it('handles colons in the command part', () => {
+      const result = parseAddFlag('types:tsc -w --host 0.0.0.0:3000');
+      expect(result).toEqual({
+        name: 'types',
+        command: 'tsc -w --host 0.0.0.0:3000',
+      });
+    });
+
+    it('returns null for missing colon', () => {
+      expect(parseAddFlag('no-colon-here')).toBeNull();
+    });
+
+    it('returns null for leading colon', () => {
+      expect(parseAddFlag(':command')).toBeNull();
+    });
+  });
+
+  describe('readDevConfig', () => {
+    let tmpDir: string;
+
+    beforeEach(async () => {
+      tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'telaio-dev-'));
+    });
+
+    afterEach(async () => {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('reads processes from package.json telaio.dev key', async () => {
+      const pkg = {
+        name: 'test',
+        telaio: {
+          dev: {
+            processes: [
+              { name: 'api', command: 'tsx watch src/server.ts' },
+              { name: 'types', command: 'tsc -w' },
+            ],
+          },
+        },
+      };
+      await fs.writeFile(
+        path.join(tmpDir, 'package.json'),
+        JSON.stringify(pkg),
+        'utf-8',
+      );
+
+      const config = readDevConfig(tmpDir);
+      expect(config.processes).toHaveLength(2);
+      expect(config.processes?.[0]?.name).toBe('api');
+    });
+
+    it('returns empty processes when telaio.dev is missing', async () => {
+      await fs.writeFile(
+        path.join(tmpDir, 'package.json'),
+        JSON.stringify({ name: 'test' }),
+        'utf-8',
+      );
+
+      const config = readDevConfig(tmpDir);
+      expect(config.processes).toEqual([]);
+    });
+
+    it('returns empty processes when package.json is missing', () => {
+      const config = readDevConfig(path.join(tmpDir, 'nonexistent'));
+      expect(config.processes).toEqual([]);
+    });
   });
 });
