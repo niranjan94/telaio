@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import type { Logger } from 'pino';
+import {
+  createDatabase,
+  createPool,
+  type DatabaseOptions,
+  type PoolOptions,
+  registerCitextParser,
+} from './db/client.js';
 import { createLogger } from './logger/index.js';
 import { registerBuiltinSchemas, registerSchemas } from './schema/index.js';
 import { registerHooks } from './server/hooks.js';
@@ -13,6 +20,21 @@ import type {
   StartOptions,
   TelaioApp,
 } from './types.js';
+
+/** Options for withDatabase(). Supports three modes: pool+db, pool-only, or from-config. */
+export interface WithDatabaseOptions {
+  /** Pre-created pg.Pool (for sharing with auth libraries). */
+  pool?: import('pg').Pool;
+  /** Pre-created Kysely instance (for sharing with auth libraries). */
+  // biome-ignore lint/suspicious/noExplicitAny: generic database type
+  db?: import('kysely').Kysely<any>;
+  /** Pool options when creating a pool internally. */
+  poolOptions?: PoolOptions;
+  /** Kysely options when creating a database internally. */
+  databaseOptions?: DatabaseOptions;
+  /** Whether to register the CITEXT array parser. Defaults to true. */
+  citext?: boolean;
+}
 
 /** Options passed to createApp(). */
 export interface CreateAppOptions<
@@ -37,6 +59,7 @@ export class AppBuilder<
   private _swaggerOptions: SwaggerOptions | null = null;
   private _scalarOptions: ScalarOptions | null = null;
   private _schemasDir: string | null = null;
+  private _dbOptions: WithDatabaseOptions | null = null;
   private _onReady: (() => Promise<void>) | null = null;
   private _onClose: (() => Promise<void>) | null = null;
   private _ephemeral = false;
@@ -50,6 +73,21 @@ export class AppBuilder<
   withPlugins(options: PluginOptions): AppBuilder<F, TSession, TConfig> {
     this._pluginOptions = { ...this._pluginOptions, ...options };
     return this;
+  }
+
+  /**
+   * Enable database support with pool and Kysely.
+   * Accepts pre-created instances (for sharing with auth libraries) or creates them internally.
+   */
+  withDatabase(
+    options?: WithDatabaseOptions,
+  ): AppBuilder<F & { database: true }, TSession, TConfig> {
+    this._dbOptions = options ?? {};
+    return this as unknown as AppBuilder<
+      F & { database: true },
+      TSession,
+      TConfig
+    >;
   }
 
   /** Configure OpenAPI/Swagger spec generation. */
@@ -122,6 +160,31 @@ export class AppBuilder<
       exposeHeadRoutes: false,
     });
 
+    // 0. Set up database if configured
+    let pool: import('pg').Pool | undefined;
+    // biome-ignore lint/suspicious/noExplicitAny: generic database type
+    let db: import('kysely').Kysely<any> | undefined;
+
+    if (this._dbOptions) {
+      const dbOpts = this._dbOptions;
+
+      // Resolve pool: use provided or create from config/options
+      pool =
+        dbOpts.pool ??
+        createPool(
+          dbOpts.poolOptions ?? (config as Record<string, unknown>),
+          logger,
+        );
+
+      // Resolve db: use provided or create from pool
+      db = dbOpts.db ?? createDatabase(pool, dbOpts.databaseOptions);
+
+      // Register CITEXT parser unless explicitly disabled
+      if (dbOpts.citext !== false) {
+        await registerCitextParser(pool, logger);
+      }
+    }
+
     // 1. Register plugins (ordered)
     await registerPlugins(app, this._pluginOptions, { logger, baseDir });
 
@@ -158,7 +221,8 @@ export class AppBuilder<
       });
     }
 
-    const telaioApp: TelaioApp<F, TSession, TConfig> = {
+    // biome-ignore lint/suspicious/noExplicitAny: conditional properties based on features
+    const telaioApp: any = {
       fastify: app,
       config,
       logger,
@@ -183,9 +247,19 @@ export class AppBuilder<
 
       async stop() {
         await app.close();
+        if (db) {
+          await db.destroy();
+        }
+        if (pool) {
+          await pool.end();
+        }
         logger.info('server stopped');
       },
-    } as TelaioApp<F, TSession, TConfig>;
+    };
+
+    // Attach database resources if configured
+    if (pool) telaioApp.pool = pool;
+    if (db) telaioApp.db = db;
 
     return telaioApp;
   }
