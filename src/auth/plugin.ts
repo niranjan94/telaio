@@ -105,6 +105,10 @@ export function buildAuthPlugin<TSession>(
           const session = await adapter.getSession(headers);
           request.maybeAuthSession = session;
         } catch (error) {
+          // Re-throw intentional HTTP errors (e.g. UnauthorizedError from allowlist checks).
+          if (error instanceof Error && 'statusCode' in error) {
+            throw error;
+          }
           logger.debug({ error, url: request.url }, 'Session hydration failed');
           request.maybeAuthSession = null;
         }
