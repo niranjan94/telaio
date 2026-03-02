@@ -12,6 +12,12 @@ import {
   registerCitextParser,
 } from './db/client.js';
 import { createLogger } from './logger/index.js';
+import { type QueueClientOptions, stopBoss } from './queue/client.js';
+import {
+  createQueueProducer,
+  type QueueProducer,
+  type QueueRegistry,
+} from './queue/producer.js';
 import { registerBuiltinSchemas, registerSchemas } from './schema/index.js';
 import { registerHooks } from './server/hooks.js';
 import { type PluginOptions, registerPlugins } from './server/plugins.js';
@@ -47,6 +53,12 @@ export interface WithCacheOptions {
   cacheOptions?: CacheOptions;
 }
 
+/** Options for withQueues(). */
+export interface WithQueueOptions {
+  /** pg-boss connection options. If omitted, uses DATABASE_URL from config. */
+  connection?: QueueClientOptions;
+}
+
 /** Options passed to createApp(). */
 export interface CreateAppOptions<
   TConfig extends Record<string, unknown> = Record<string, never>,
@@ -74,6 +86,8 @@ export class AppBuilder<
   private _cacheOptions: WithCacheOptions | null = null;
   // biome-ignore lint/suspicious/noExplicitAny: session type varies
   private _authAdapter: AuthAdapter<any> | null = null;
+  private _queueRegistry: QueueRegistry | null = null;
+  private _queueOptions: WithQueueOptions | null = null;
   private _onReady: (() => Promise<void>) | null = null;
   private _onClose: (() => Promise<void>) | null = null;
   private _ephemeral = false;
@@ -114,6 +128,24 @@ export class AppBuilder<
     this._cacheOptions = options ?? {};
     return this as unknown as AppBuilder<
       F & { cache: true },
+      TSession,
+      TConfig
+    >;
+  }
+
+  /**
+   * Enable queue support with pg-boss.
+   * Pass a registry mapping queue names to their handler functions.
+   * The resulting app.queue producer will type-check send() calls against the registry.
+   */
+  withQueues<TQueues extends QueueRegistry>(
+    registry: TQueues,
+    options?: WithQueueOptions,
+  ): AppBuilder<F & { queue: true }, TSession, TConfig> {
+    this._queueRegistry = registry;
+    this._queueOptions = options ?? {};
+    return this as unknown as AppBuilder<
+      F & { queue: true },
       TSession,
       TConfig
     >;
@@ -226,7 +258,16 @@ export class AppBuilder<
       }
     }
 
-    // 0b. Set up cache if configured
+    // 0b. Set up queue producer if configured
+    let queueProducer: QueueProducer<QueueRegistry> | undefined;
+
+    if (this._queueRegistry) {
+      const connOpts =
+        this._queueOptions?.connection ?? (config as Record<string, unknown>);
+      queueProducer = createQueueProducer(connOpts, logger);
+    }
+
+    // 0c. Set up cache if configured
     let cache: Cache | undefined;
 
     if (this._cacheOptions) {
@@ -310,6 +351,9 @@ export class AppBuilder<
 
       async stop() {
         await app.close();
+        if (queueProducer) {
+          await stopBoss(logger);
+        }
         if (cache) {
           await cache.close();
         }
@@ -329,6 +373,9 @@ export class AppBuilder<
 
     // Attach cache if configured
     if (cache) telaioApp.cache = cache;
+
+    // Attach queue producer if configured
+    if (queueProducer) telaioApp.queue = queueProducer;
 
     return telaioApp;
   }
