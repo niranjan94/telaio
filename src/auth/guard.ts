@@ -6,7 +6,7 @@ import {
   ForbiddenResponseSchema,
   UnauthorizedResponseSchema,
 } from '../schema/index.js';
-import type { AuthAdapter, AuthGuardTypes } from './adapter.js';
+import type { AuthAdapter, GuardRole, GuardScope } from './adapter.js';
 
 /** Module-level registered adapter for adapter-based withAuth. */
 // biome-ignore lint/suspicious/noExplicitAny: adapter session type erased at runtime
@@ -24,11 +24,11 @@ export function registerGuardAdapter(adapter: AuthAdapter<any>): void {
 /** Options for the withAuth route guard. */
 export interface WithAuthOptions {
   /** Scopes the route is restricted to. */
-  scopes?: AuthGuardTypes['scope'][];
+  scopes?: GuardScope[];
   /** Single scope shorthand (merged into scopes). */
-  scope?: AuthGuardTypes['scope'];
+  scope?: GuardScope;
   /** Roles allowed to access the route. */
-  roles?: AuthGuardTypes['role'][];
+  roles?: GuardRole[];
   /**
    * Custom authorization check. Receives the session, return false to deny.
    * Runs after scope/role checks.
@@ -60,12 +60,12 @@ function buildAdapterGuard(
   const userSchema = options?.schema ?? {};
 
   // 1. Normalize scopes (merge scope + scopes)
-  let scopes: AuthGuardTypes['scope'][] = [...(options?.scopes ?? [])];
+  let scopes: GuardScope[] = [...(options?.scopes ?? [])];
   if (options?.scope && !scopes.includes(options.scope)) {
     scopes.push(options.scope);
   }
 
-  const roles: AuthGuardTypes['role'][] = options?.roles ?? [];
+  const roles: GuardRole[] = options?.roles ?? [];
 
   // 2. Derive additional scopes if configured
   if (adapter.deriveScopes) {

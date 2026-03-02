@@ -13,10 +13,18 @@ import type { FastifyRequest } from 'fastify';
  * }
  * ```
  */
-export interface AuthGuardTypes {
-  scope: string;
-  role: string;
-}
+// biome-ignore lint/suspicious/noEmptyInterface: augmented by consumers
+export interface AuthGuardTypes {}
+
+/** Resolved scope type: consumer-provided or defaults to string. */
+export type GuardScope = AuthGuardTypes extends { scope: infer S }
+  ? S
+  : string;
+
+/** Resolved role type: consumer-provided or defaults to string. */
+export type GuardRole = AuthGuardTypes extends { role: infer R }
+  ? R
+  : string;
 
 /**
  * Contract that any auth library must implement to integrate with telaio.
@@ -55,29 +63,29 @@ export interface AuthAdapter<TSession> {
   /** Validate that the session satisfies a scope. Throw to deny. */
   validateScope?: (
     session: TSession,
-    scope: AuthGuardTypes['scope'],
+    scope: GuardScope,
   ) => boolean;
 
   /** Validate that the session satisfies one of the given roles. Throw to deny. */
   validateRole?: (
     session: TSession,
-    roles: AuthGuardTypes['role'][],
+    roles: GuardRole[],
   ) => boolean;
 
   /** Derive additional scopes (e.g. roles imply Organization). */
   deriveScopes?: (
-    scopes: AuthGuardTypes['scope'][],
-    roles: AuthGuardTypes['role'][],
-  ) => AuthGuardTypes['scope'][];
+    scopes: GuardScope[],
+    roles: GuardRole[],
+  ) => GuardScope[];
 
   /** Return OpenAPI security entries for the active scopes. */
   security?: (
-    scopes: AuthGuardTypes['scope'][],
+    scopes: GuardScope[],
   ) => Record<string, string[]>[];
 
   /** Return additional response schemas keyed by status code. */
   responseSchemas?: (
-    scopes: AuthGuardTypes['scope'][],
+    scopes: GuardScope[],
   ) => Record<number, unknown>;
 }
 
