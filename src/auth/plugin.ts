@@ -60,7 +60,16 @@ export function buildAuthPlugin<TSession>(
             );
           }
 
-          const response = await handler(request.raw as unknown as Request);
+          const url = new URL(request.url, `http://${request.headers.host}`);
+          const headers = transformToHeaders(
+            request.headers as Record<string, string | string[] | undefined>,
+          );
+          const fetchRequest = new Request(url.toString(), {
+            method: request.method,
+            headers,
+            body: request.body ? JSON.stringify(request.body) : undefined,
+          });
+          const response = await handler(fetchRequest);
 
           // Forward response headers
           for (const [key, value] of response.headers.entries()) {
