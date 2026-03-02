@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import type { Logger } from 'pino';
+import { type Cache, type CacheOptions, createCache } from './cache/index.js';
 import {
   createDatabase,
   createPool,
@@ -36,6 +37,14 @@ export interface WithDatabaseOptions {
   citext?: boolean;
 }
 
+/** Options for withCache(). */
+export interface WithCacheOptions {
+  /** Pre-created Cache instance (for sharing with auth libraries). */
+  instance?: Cache;
+  /** Cache options when creating internally. */
+  cacheOptions?: CacheOptions;
+}
+
 /** Options passed to createApp(). */
 export interface CreateAppOptions<
   TConfig extends Record<string, unknown> = Record<string, never>,
@@ -60,6 +69,7 @@ export class AppBuilder<
   private _scalarOptions: ScalarOptions | null = null;
   private _schemasDir: string | null = null;
   private _dbOptions: WithDatabaseOptions | null = null;
+  private _cacheOptions: WithCacheOptions | null = null;
   private _onReady: (() => Promise<void>) | null = null;
   private _onClose: (() => Promise<void>) | null = null;
   private _ephemeral = false;
@@ -85,6 +95,21 @@ export class AppBuilder<
     this._dbOptions = options ?? {};
     return this as unknown as AppBuilder<
       F & { database: true },
+      TSession,
+      TConfig
+    >;
+  }
+
+  /**
+   * Enable cache support with Redis.
+   * Accepts a pre-created Cache instance (for sharing with auth libraries) or creates one internally.
+   */
+  withCache(
+    options?: WithCacheOptions,
+  ): AppBuilder<F & { cache: true }, TSession, TConfig> {
+    this._cacheOptions = options ?? {};
+    return this as unknown as AppBuilder<
+      F & { cache: true },
       TSession,
       TConfig
     >;
@@ -185,6 +210,19 @@ export class AppBuilder<
       }
     }
 
+    // 0b. Set up cache if configured
+    let cache: Cache | undefined;
+
+    if (this._cacheOptions) {
+      const cacheOpts = this._cacheOptions;
+      cache =
+        cacheOpts.instance ??
+        createCache(
+          cacheOpts.cacheOptions ?? (config as Record<string, unknown>),
+          logger,
+        );
+    }
+
     // 1. Register plugins (ordered)
     await registerPlugins(app, this._pluginOptions, { logger, baseDir });
 
@@ -247,6 +285,9 @@ export class AppBuilder<
 
       async stop() {
         await app.close();
+        if (cache) {
+          await cache.close();
+        }
         if (db) {
           await db.destroy();
         }
@@ -260,6 +301,9 @@ export class AppBuilder<
     // Attach database resources if configured
     if (pool) telaioApp.pool = pool;
     if (db) telaioApp.db = db;
+
+    // Attach cache if configured
+    if (cache) telaioApp.cache = cache;
 
     return telaioApp;
   }
