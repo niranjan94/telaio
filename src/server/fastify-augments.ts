@@ -8,10 +8,16 @@ declare module 'fastify' {
     maybeAuthSession: unknown | null;
     /** Request start timestamp (epoch ms). */
     startTime?: number;
+    /** Tracked temp file paths for automatic cleanup. */
+    tempFiles?: string[];
 
     /** Get the authenticated session or throw UnauthorizedError. */
     readonly getAuthSession: () => unknown;
     /** Check if an auth session exists on this request. */
     readonly hasAuthSession: () => boolean;
+    /** Add a temp file path for cleanup after response. */
+    readonly addTempFile: (filePath: string) => void;
+    /** Create a temp file and track it for cleanup. Returns the file path. */
+    readonly getTempFile: (options?: { extension?: string }) => string;
   }
 }

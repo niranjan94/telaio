@@ -95,6 +95,7 @@ export class AppBuilder<
   private _onReady: (() => Promise<void>) | null = null;
   private _onClose: (() => Promise<void>) | null = null;
   private _ephemeral = false;
+  private _tempFiles = false;
 
   constructor(options: CreateAppOptions<TConfig> = {}) {
     this._config = (options.config ?? {}) as TConfig;
@@ -200,6 +201,15 @@ export class AppBuilder<
   /** Register a callback to run when the server is closing. */
   onClose(fn: () => Promise<void>): AppBuilder<F, TSession, TConfig> {
     this._onClose = fn;
+    return this;
+  }
+
+  /**
+   * Enable temp file support on requests.
+   * Adds addTempFile(), getTempFile() decorators and auto-cleanup on response.
+   */
+  withTempFiles(): AppBuilder<F, TSession, TConfig> {
+    this._tempFiles = true;
     return this;
   }
 
@@ -331,6 +341,7 @@ export class AppBuilder<
     if (!this._ephemeral) {
       await registerHooks(app, {
         logger,
+        tempFiles: this._tempFiles,
         onReady: this._onReady ?? undefined,
         onClose: this._onClose ?? undefined,
       });

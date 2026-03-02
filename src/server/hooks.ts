@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { unlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import dayjs from 'dayjs';
 import type { FastifyError, FastifyInstance } from 'fastify';
 import type { Logger } from 'pino';
@@ -15,6 +18,7 @@ export async function registerHooks(
   server: FastifyInstance,
   options: {
     logger: Logger;
+    tempFiles?: boolean;
     onReady?: () => Promise<void>;
     onClose?: () => Promise<void>;
   },
@@ -38,6 +42,43 @@ export async function registerHooks(
   server.decorateRequest('hasAuthSession', function () {
     return !!this.maybeAuthSession;
   });
+
+  // Temp file support (opt-in via builder.withTempFiles())
+  if (options.tempFiles) {
+    server.decorateRequest('tempFiles');
+
+    server.decorateRequest(
+      'addTempFile',
+      function (filePath: string) {
+        this.tempFiles?.push(filePath);
+      },
+      ['tempFiles'],
+    );
+
+    server.decorateRequest(
+      'getTempFile',
+      function (opts?: { extension?: string }) {
+        const ext = opts?.extension ? `.${opts.extension}` : '';
+        const filePath = join(tmpdir(), `${randomUUID()}${ext}`);
+        this.addTempFile(filePath);
+        return filePath;
+      },
+      ['addTempFile'],
+    );
+
+    server.addHook('onRequest', (req, _reply, done) => {
+      req.tempFiles = [];
+      done();
+    });
+
+    server.addHook('onResponse', (req, _reply, done) => {
+      const files = req.tempFiles || [];
+      if (files.length > 0) {
+        Promise.all(files.map(unlink)).catch((e) => req.log.error(e));
+      }
+      done();
+    });
+  }
 
   server.setErrorHandler(
     (error: FastifyError | RequestError | Error, request, reply) => {
