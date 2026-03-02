@@ -75,8 +75,8 @@
     "test:unit": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "test:types": "vitest typecheck",
-    "test:all": "vitest run && vitest run --config vitest.integration.config.ts && vitest run --config vitest.e2e.config.ts && vitest typecheck",
+    "test:types": "vitest run --typecheck.only",
+    "test:all": "vitest run && vitest run --config vitest.integration.config.ts && vitest run --config vitest.e2e.config.ts && vitest run --typecheck.only",
     "prepublishOnly": "pnpm build"
   },
   "keywords": [
