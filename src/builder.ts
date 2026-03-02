@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import type { Logger } from 'pino';
+import type { AuthAdapter } from './auth/adapter.js';
+import { buildAuthPlugin } from './auth/plugin.js';
 import { type Cache, type CacheOptions, createCache } from './cache/index.js';
 import {
   createDatabase,
@@ -70,6 +72,8 @@ export class AppBuilder<
   private _schemasDir: string | null = null;
   private _dbOptions: WithDatabaseOptions | null = null;
   private _cacheOptions: WithCacheOptions | null = null;
+  // biome-ignore lint/suspicious/noExplicitAny: session type varies
+  private _authAdapter: AuthAdapter<any> | null = null;
   private _onReady: (() => Promise<void>) | null = null;
   private _onClose: (() => Promise<void>) | null = null;
   private _ephemeral = false;
@@ -113,6 +117,18 @@ export class AppBuilder<
       TSession,
       TConfig
     >;
+  }
+
+  /**
+   * Enable authentication with a custom auth adapter.
+   * The adapter's session type flows through to request decorators.
+   */
+  withAuth<S>(
+    adapter: AuthAdapter<S>,
+  ): AppBuilder<F & { auth: true }, S, TConfig> {
+    // biome-ignore lint/suspicious/noExplicitAny: session type erased at runtime
+    this._authAdapter = adapter as AuthAdapter<any>;
+    return this as unknown as AppBuilder<F & { auth: true }, S, TConfig>;
   }
 
   /** Configure OpenAPI/Swagger spec generation. */
@@ -235,6 +251,15 @@ export class AppBuilder<
         ((config as Record<string, unknown>).APP_NAME as string | undefined) ??
         'API';
       await registerSwagger(app, { info: { title: appName } });
+    }
+
+    // 2b. Register auth plugin (after swagger, before schemas)
+    if (this._authAdapter) {
+      const authPlugin = buildAuthPlugin({
+        adapter: this._authAdapter,
+        logger,
+      });
+      await app.register(authPlugin);
     }
 
     // 3. Register built-in schemas

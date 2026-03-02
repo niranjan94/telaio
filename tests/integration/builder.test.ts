@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { AuthAdapter } from '../../src/auth/adapter.js';
+import { withAuth } from '../../src/auth/guard.js';
 import { createApp } from '../../src/builder.js';
 import {
   BadRequestError,
@@ -220,5 +222,172 @@ describe('AppBuilder', () => {
     // Builder should still be usable
     app = await builder.build();
     expect(app.fastify).toBeDefined();
+  });
+
+  describe('withAuth', () => {
+    const testSession = {
+      userId: 'user-1',
+      role: 'admin',
+    };
+
+    const testAdapter: AuthAdapter<typeof testSession> = {
+      async getSession(headers) {
+        const token = headers.get('authorization');
+        if (token === 'Bearer valid') return testSession;
+        return null;
+      },
+    };
+
+    it('hydrates session from adapter', async () => {
+      app = await createApp({ logger })
+        .withPlugins({ autoload: false })
+        .withAuth(testAdapter)
+        .build();
+
+      app.fastify.get('/me', async (req) => {
+        return { session: req.maybeAuthSession };
+      });
+
+      const response = await app.fastify.inject({
+        method: 'GET',
+        url: '/me',
+        headers: { authorization: 'Bearer valid' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().session).toEqual(testSession);
+    });
+
+    it('sets null session when no auth header', async () => {
+      app = await createApp({ logger })
+        .withPlugins({ autoload: false })
+        .withAuth(testAdapter)
+        .build();
+
+      app.fastify.get('/me', async (req) => {
+        return { session: req.maybeAuthSession };
+      });
+
+      const response = await app.fastify.inject({
+        method: 'GET',
+        url: '/me',
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json().session).toBeNull();
+    });
+
+    it('withAuth guard rejects unauthenticated requests', async () => {
+      app = await createApp({ logger })
+        .withPlugins({ autoload: false })
+        .withAuth(testAdapter)
+        .build();
+
+      app.fastify.get('/protected', {
+        ...withAuth(),
+        handler: async (_req) => {
+          return { ok: true };
+        },
+      });
+
+      const response = await app.fastify.inject({
+        method: 'GET',
+        url: '/protected',
+      });
+
+      expect(response.statusCode).toBe(401);
+    });
+
+    it('withAuth guard allows authenticated requests', async () => {
+      app = await createApp({ logger })
+        .withPlugins({ autoload: false })
+        .withAuth(testAdapter)
+        .build();
+
+      app.fastify.get('/protected', {
+        ...withAuth(),
+        handler: async () => {
+          return { ok: true };
+        },
+      });
+
+      const response = await app.fastify.inject({
+        method: 'GET',
+        url: '/protected',
+        headers: { authorization: 'Bearer valid' },
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ ok: true });
+    });
+
+    it('withAuth guard enforces roles', async () => {
+      app = await createApp({ logger })
+        .withPlugins({ autoload: false })
+        .withAuth(testAdapter)
+        .build();
+
+      app.fastify.get('/admin', {
+        ...withAuth({ roles: ['superadmin'] }),
+        handler: async () => {
+          return { ok: true };
+        },
+      });
+
+      const response = await app.fastify.inject({
+        method: 'GET',
+        url: '/admin',
+        headers: { authorization: 'Bearer valid' },
+      });
+
+      // Session has role 'admin' but route requires 'superadmin'
+      expect(response.statusCode).toBe(403);
+    });
+
+    it('withAuth guard allows matching roles', async () => {
+      app = await createApp({ logger })
+        .withPlugins({ autoload: false })
+        .withAuth(testAdapter)
+        .build();
+
+      app.fastify.get('/admin', {
+        ...withAuth({ roles: ['admin', 'owner'] }),
+        handler: async () => {
+          return { ok: true };
+        },
+      });
+
+      const response = await app.fastify.inject({
+        method: 'GET',
+        url: '/admin',
+        headers: { authorization: 'Bearer valid' },
+      });
+
+      expect(response.statusCode).toBe(200);
+    });
+
+    it('withAuth authorize callback can deny access', async () => {
+      app = await createApp({ logger })
+        .withPlugins({ autoload: false })
+        .withAuth(testAdapter)
+        .build();
+
+      app.fastify.get('/custom', {
+        ...withAuth({
+          authorize: (session) => session.userId === 'user-999',
+        }),
+        handler: async () => {
+          return { ok: true };
+        },
+      });
+
+      const response = await app.fastify.inject({
+        method: 'GET',
+        url: '/custom',
+        headers: { authorization: 'Bearer valid' },
+      });
+
+      expect(response.statusCode).toBe(403);
+    });
   });
 });
