@@ -1,6 +1,29 @@
+import type { FastifyRequest } from 'fastify';
+
+/**
+ * Module augmentation interface for typing scope and role enums.
+ * Consumers declare their types by augmenting this interface:
+ *
+ * ```ts
+ * declare module 'telaio/auth' {
+ *   interface AuthGuardTypes {
+ *     scope: MyApiScope;
+ *     role: MyRole;
+ *   }
+ * }
+ * ```
+ */
+export interface AuthGuardTypes {
+  scope: string;
+  role: string;
+}
+
 /**
  * Contract that any auth library must implement to integrate with telaio.
  * TSession is the session shape that gets attached to requests.
+ *
+ * Guard config properties (validateScope, validateRole, etc.) are optional.
+ * When present, withAuth() uses them instead of generic property inspection.
  */
 export interface AuthAdapter<TSession> {
   /**
@@ -23,6 +46,39 @@ export interface AuthAdapter<TSession> {
 
   /** Error redirect URL for auth errors (e.g., frontend error page). */
   errorRedirectUrl?: string;
+
+  // -- Guard config (optional, enables adapter-based withAuth) --
+
+  /** Extract session from a FastifyRequest. Defaults to req.maybeAuthSession. */
+  getSessionFromRequest?: (request: FastifyRequest) => TSession | null;
+
+  /** Validate that the session satisfies a scope. Throw to deny. */
+  validateScope?: (
+    session: TSession,
+    scope: AuthGuardTypes['scope'],
+  ) => boolean;
+
+  /** Validate that the session satisfies one of the given roles. Throw to deny. */
+  validateRole?: (
+    session: TSession,
+    roles: AuthGuardTypes['role'][],
+  ) => boolean;
+
+  /** Derive additional scopes (e.g. roles imply Organization). */
+  deriveScopes?: (
+    scopes: AuthGuardTypes['scope'][],
+    roles: AuthGuardTypes['role'][],
+  ) => AuthGuardTypes['scope'][];
+
+  /** Return OpenAPI security entries for the active scopes. */
+  security?: (
+    scopes: AuthGuardTypes['scope'][],
+  ) => Record<string, string[]>[];
+
+  /** Return additional response schemas keyed by status code. */
+  responseSchemas?: (
+    scopes: AuthGuardTypes['scope'][],
+  ) => Record<number, unknown>;
 }
 
 /**

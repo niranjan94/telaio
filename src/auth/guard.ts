@@ -6,32 +6,142 @@ import {
   ForbiddenResponseSchema,
   UnauthorizedResponseSchema,
 } from '../schema/index.js';
+import type { AuthAdapter, AuthGuardTypes } from './adapter.js';
+
+/** Module-level registered adapter for adapter-based withAuth. */
+// biome-ignore lint/suspicious/noExplicitAny: adapter session type erased at runtime
+let registeredAdapter: AuthAdapter<any> | null = null;
+
+/**
+ * Registers an auth adapter for use by withAuth().
+ * Called automatically by buildAuthPlugin() when an adapter is provided.
+ */
+// biome-ignore lint/suspicious/noExplicitAny: adapter session type erased at runtime
+export function registerGuardAdapter(adapter: AuthAdapter<any>): void {
+  registeredAdapter = adapter;
+}
 
 /** Options for the withAuth route guard. */
-export interface WithAuthOptions<TSession = unknown> {
-  /** User-defined scope strings that the session must satisfy. */
-  scopes?: string[];
-  /** User-defined role strings that the session must satisfy. */
-  roles?: string[];
+export interface WithAuthOptions {
+  /** Scopes the route is restricted to. */
+  scopes?: AuthGuardTypes['scope'][];
+  /** Single scope shorthand (merged into scopes). */
+  scope?: AuthGuardTypes['scope'];
+  /** Roles allowed to access the route. */
+  roles?: AuthGuardTypes['role'][];
   /**
    * Custom authorization check. Receives the session, return false to deny.
    * Runs after scope/role checks.
    */
-  authorize?: (session: TSession) => boolean | Promise<boolean>;
+  authorize?: (session: unknown) => boolean | Promise<boolean>;
   /** Additional route schema to merge (e.g., custom headers, params). */
   schema?: RouteOptions['schema'];
 }
 
 /**
  * Returns route options with a preValidation hook that enforces authentication.
- * The hook checks that req.getAuthSession() succeeds, then runs optional
- * scope/role/authorize checks.
- *
- * Also injects standard error response schemas for OpenAPI documentation.
+ * When an adapter with guard config is registered (via buildAuthPlugin), uses
+ * adapter-specific validation. Otherwise falls back to generic scope/role checks.
  */
-export function withAuth<TSession = unknown>(
-  options?: WithAuthOptions<TSession>,
+export function withAuth(options?: WithAuthOptions): Partial<RouteOptions> {
+  const adapter = registeredAdapter;
+  if (adapter?.validateScope || adapter?.validateRole) {
+    return buildAdapterGuard(adapter, options);
+  }
+  return buildGenericGuard(options);
+}
+
+/** Builds route options using adapter-specific guard config. */
+function buildAdapterGuard(
+  // biome-ignore lint/suspicious/noExplicitAny: session type erased
+  adapter: AuthAdapter<any>,
+  options?: WithAuthOptions,
 ): Partial<RouteOptions> {
+  const userSchema = options?.schema ?? {};
+
+  // 1. Normalize scopes (merge scope + scopes)
+  let scopes: AuthGuardTypes['scope'][] = [...(options?.scopes ?? [])];
+  if (options?.scope && !scopes.includes(options.scope)) {
+    scopes.push(options.scope);
+  }
+
+  const roles: AuthGuardTypes['role'][] = options?.roles ?? [];
+
+  // 2. Derive additional scopes if configured
+  if (adapter.deriveScopes) {
+    scopes = adapter.deriveScopes(scopes, roles);
+  }
+
+  // 3. Build preValidation hook
+  const preValidation = async (request: FastifyRequest) => {
+    const session = adapter.getSessionFromRequest
+      ? adapter.getSessionFromRequest(request)
+      : (request.maybeAuthSession ?? null);
+
+    if (!session) {
+      throw new UnauthorizedError();
+    }
+
+    // Validate each scope
+    if (adapter.validateScope) {
+      for (const scope of scopes) {
+        adapter.validateScope(session, scope);
+      }
+    }
+
+    // Validate roles
+    if (roles.length > 0 && adapter.validateRole) {
+      adapter.validateRole(session, roles);
+    }
+
+    // Custom authorize callback
+    if (options?.authorize) {
+      const allowed = await options.authorize(session);
+      if (!allowed) {
+        throw new ForbiddenError(
+          'You do not have permission to perform this action.',
+        );
+      }
+    }
+  };
+
+  // 4. Build schema
+  const responseSchemas: Record<string, unknown> = {
+    401: AutoRef(UnauthorizedResponseSchema),
+    403: AutoRef(ForbiddenResponseSchema),
+  };
+
+  // Add adapter-provided response schemas
+  if (adapter.responseSchemas) {
+    const additional = adapter.responseSchemas(scopes);
+    for (const [code, schema] of Object.entries(additional)) {
+      responseSchemas[code] = schema;
+    }
+  }
+
+  // Merge with user-provided response schemas
+  const userResponse = (userSchema as Record<string, unknown>).response as
+    | Record<string, unknown>
+    | undefined;
+  if (userResponse) {
+    Object.assign(responseSchemas, userResponse);
+  }
+
+  const schema: Record<string, unknown> = {
+    ...userSchema,
+    response: responseSchemas,
+  };
+
+  // Add security entries
+  if (adapter.security) {
+    schema.security = adapter.security(scopes);
+  }
+
+  return { schema, preValidation };
+}
+
+/** Builds route options using generic scope/role property inspection. */
+function buildGenericGuard(options?: WithAuthOptions): Partial<RouteOptions> {
   const userSchema = options?.schema ?? {};
 
   // Merge standard error responses into the route schema
@@ -49,6 +159,12 @@ export function withAuth<TSession = unknown>(
     response: responseSchemas,
   };
 
+  // Normalize scopes (merge scope + scopes)
+  const scopes: string[] = [...(options?.scopes ?? [])];
+  if (options?.scope && !scopes.includes(options.scope)) {
+    scopes.push(options.scope);
+  }
+
   return {
     schema,
     preValidation: async (request) => {
@@ -56,7 +172,7 @@ export function withAuth<TSession = unknown>(
       const session = request.getAuthSession();
 
       // 2. Check scopes (user-defined strings)
-      if (options?.scopes && options.scopes.length > 0) {
+      if (scopes.length > 0) {
         // Session must have a 'scopes' or 'scope' array-like property
         const s = session as Record<string, unknown>;
         const sessionScopes = (s.scopes ?? s.scope ?? []) as unknown[];
@@ -64,7 +180,7 @@ export function withAuth<TSession = unknown>(
           Array.isArray(sessionScopes) ? sessionScopes : [sessionScopes],
         );
 
-        const hasScope = options.scopes.some((sc) => sessionScopeSet.has(sc));
+        const hasScope = scopes.some((sc) => sessionScopeSet.has(sc));
         if (!hasScope) {
           throw new ForbiddenError(
             'You do not have the required scope for this action.',
@@ -73,7 +189,8 @@ export function withAuth<TSession = unknown>(
       }
 
       // 3. Check roles (user-defined strings)
-      if (options?.roles && options.roles.length > 0) {
+      const roles = options?.roles ?? [];
+      if (roles.length > 0) {
         // Session must have a 'role' property (possibly nested)
         const s = session as Record<string, unknown>;
         const member = s.member as Record<string, unknown> | undefined;
@@ -83,7 +200,7 @@ export function withAuth<TSession = unknown>(
           | string
           | undefined;
 
-        if (!role || !options.roles.includes(role)) {
+        if (!role || !roles.includes(role)) {
           throw new ForbiddenError(
             'You do not have the required role for this action.',
           );
@@ -92,9 +209,7 @@ export function withAuth<TSession = unknown>(
 
       // 4. Custom authorize callback
       if (options?.authorize) {
-        const allowed = await options.authorize(
-          session as Parameters<NonNullable<typeof options.authorize>>[0],
-        );
+        const allowed = await options.authorize(session);
         if (!allowed) {
           throw new ForbiddenError(
             'You do not have permission to perform this action.',
@@ -102,126 +217,5 @@ export function withAuth<TSession = unknown>(
         }
       }
     },
-  };
-}
-
-/** Configuration for creating a domain-specific withAuth guard. */
-export interface AuthGuardConfig<
-  TSession,
-  TScope extends string = string,
-  TRole extends string = string,
-> {
-  /** Extract the session from a request. Return null if unauthenticated. */
-  getSession: (request: FastifyRequest) => TSession | null;
-  /** Validate that the session satisfies a scope. Throw to deny. */
-  validateScope?: (session: TSession, scope: TScope) => boolean;
-  /** Validate that the session satisfies one of the given roles. Throw to deny. */
-  validateRole?: (session: TSession, roles: TRole[]) => boolean;
-  /** Derive additional scopes (e.g. roles imply Organization). */
-  deriveScopes?: (scopes: TScope[], roles: TRole[]) => TScope[];
-  /** Return OpenAPI security entries for the active scopes. */
-  security?: (scopes: TScope[]) => Record<string, string[]>[];
-  /** Return additional response schemas keyed by status code. */
-  responseSchemas?: (scopes: TScope[]) => Record<number, unknown>;
-}
-
-/** Options accepted by the function returned from createWithAuth. */
-export interface ConfiguredWithAuthOptions<
-  TScope extends string = string,
-  TRole extends string = string,
-> {
-  /** Scopes the route is restricted to. */
-  scopes?: TScope[];
-  /** Single scope shorthand (merged into scopes). */
-  scope?: TScope;
-  /** Roles allowed to access the route. */
-  roles?: TRole[];
-  /** Additional route schema to merge. */
-  schema?: RouteOptions['schema'];
-}
-
-/**
- * Factory that returns a configured withAuth function for domain-specific auth.
- * The returned function builds route options with preValidation hooks and
- * OpenAPI schema entries based on the provided config.
- */
-export function createWithAuth<
-  TSession,
-  TScope extends string = string,
-  TRole extends string = string,
->(
-  config: AuthGuardConfig<TSession, TScope, TRole>,
-): (
-  options?: ConfiguredWithAuthOptions<TScope, TRole>,
-) => Partial<RouteOptions> {
-  return (options?: ConfiguredWithAuthOptions<TScope, TRole>) => {
-    const userSchema = options?.schema ?? {};
-
-    // 1. Normalize scopes (merge scope + scopes)
-    let scopes: TScope[] = [...(options?.scopes ?? [])];
-    if (options?.scope && !scopes.includes(options.scope)) {
-      scopes.push(options.scope);
-    }
-
-    const roles: TRole[] = options?.roles ?? [];
-
-    // 2. Derive additional scopes if configured
-    if (config.deriveScopes) {
-      scopes = config.deriveScopes(scopes, roles);
-    }
-
-    // 3. Build preValidation hook
-    const preValidation = async (request: FastifyRequest) => {
-      const session = config.getSession(request);
-      if (!session) {
-        throw new UnauthorizedError();
-      }
-
-      // Validate each scope
-      if (config.validateScope) {
-        for (const scope of scopes) {
-          config.validateScope(session, scope);
-        }
-      }
-
-      // Validate roles
-      if (roles.length > 0 && config.validateRole) {
-        config.validateRole(session, roles);
-      }
-    };
-
-    // 4. Build schema
-    const responseSchemas: Record<string, unknown> = {
-      401: AutoRef(UnauthorizedResponseSchema),
-      403: AutoRef(ForbiddenResponseSchema),
-    };
-
-    // Add config-provided response schemas
-    if (config.responseSchemas) {
-      const additional = config.responseSchemas(scopes);
-      for (const [code, schema] of Object.entries(additional)) {
-        responseSchemas[code] = schema;
-      }
-    }
-
-    // Merge with user-provided response schemas
-    const userResponse = (userSchema as Record<string, unknown>).response as
-      | Record<string, unknown>
-      | undefined;
-    if (userResponse) {
-      Object.assign(responseSchemas, userResponse);
-    }
-
-    const schema: Record<string, unknown> = {
-      ...userSchema,
-      response: responseSchemas,
-    };
-
-    // Add security entries
-    if (config.security) {
-      schema.security = config.security(scopes);
-    }
-
-    return { schema, preValidation };
   };
 }

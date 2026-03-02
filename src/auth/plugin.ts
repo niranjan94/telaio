@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import fastifyPlugin from 'fastify-plugin';
 import type { Logger } from 'pino';
 import type { AuthAdapter } from './adapter.js';
+import { registerGuardAdapter } from './guard.js';
 
 /**
  * Converts Fastify's request headers to a standard Headers object.
@@ -42,6 +43,9 @@ export function buildAuthPlugin<TSession>(
   const skipPaths = new Set(adapter.skipPaths ?? []);
 
   return fastifyPlugin(async (fastify: FastifyInstance) => {
+    // Register adapter for withAuth() guard support
+    registerGuardAdapter(adapter);
+
     // Register auth handler route if adapter provides one
     if (adapter.handler) {
       const handler = adapter.handler;
