@@ -65,12 +65,24 @@ function buildComparison<DB, TB extends keyof DB>(
       }
       return eb(column, '!=', value);
     case '$gt':
+      if (value === null || value === undefined) {
+        throw new BadRequestError(`${op} does not support null values`);
+      }
       return eb(column, '>', value);
     case '$gte':
+      if (value === null || value === undefined) {
+        throw new BadRequestError(`${op} does not support null values`);
+      }
       return eb(column, '>=', value);
     case '$lt':
+      if (value === null || value === undefined) {
+        throw new BadRequestError(`${op} does not support null values`);
+      }
       return eb(column, '<', value);
     case '$lte':
+      if (value === null || value === undefined) {
+        throw new BadRequestError(`${op} does not support null values`);
+      }
       return eb(column, '<=', value);
     case '$in':
       if (!Array.isArray(value) || value.length === 0) {
@@ -89,6 +101,9 @@ function buildComparison<DB, TB extends keyof DB>(
     case '$endswith':
       return eb(column, 'ilike', `%${escapeLike(String(value))}`);
     case '$exists':
+      if (typeof value !== 'boolean') {
+        throw new BadRequestError('$exists requires a boolean value');
+      }
       return value ? eb(column, 'is not', null) : eb(column, 'is', null);
     default:
       throw new BadRequestError(`Unknown filter operator: ${op}`);
@@ -219,6 +234,16 @@ export function applyFilter<DB, TB extends keyof DB, O>(
       typeof filterJson === 'string' ? JSON.parse(filterJson) : filterJson;
   } catch {
     throw new BadRequestError('Invalid filter JSON');
+  }
+
+  // Empty filter is a no-op: return the query unchanged.
+  if (
+    typeof parsed === 'object' &&
+    parsed !== null &&
+    !Array.isArray(parsed) &&
+    Object.keys(parsed).length === 0
+  ) {
+    return query;
   }
 
   return query.where((eb) => {
