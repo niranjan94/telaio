@@ -1,20 +1,91 @@
 {
   "name": "telaio",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.1.0",
+  "description": "A highly configurable, TypeScript-first Fastify framework",
   "type": "module",
   "files": [
     "dist"
   ],
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "prepublishOnly": "tsc",
-    "format": "biome check --write --unsafe",
-    "test": "biome check && vitest run",
-    "test:watch": "vitest"
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./db": {
+      "types": "./dist/db/index.d.ts",
+      "import": "./dist/db/index.js"
+    },
+    "./cache": {
+      "types": "./dist/cache/index.d.ts",
+      "import": "./dist/cache/index.js"
+    },
+    "./queue": {
+      "types": "./dist/queue/index.d.ts",
+      "import": "./dist/queue/index.js"
+    },
+    "./auth": {
+      "types": "./dist/auth/index.d.ts",
+      "import": "./dist/auth/index.js"
+    },
+    "./schema": {
+      "types": "./dist/schema/index.d.ts",
+      "import": "./dist/schema/index.js"
+    },
+    "./errors": {
+      "types": "./dist/errors/index.d.ts",
+      "import": "./dist/errors/index.js"
+    },
+    "./email": {
+      "types": "./dist/email/index.d.ts",
+      "import": "./dist/email/index.js"
+    },
+    "./s3": {
+      "types": "./dist/s3/index.d.ts",
+      "import": "./dist/s3/index.js"
+    },
+    "./logger": {
+      "types": "./dist/logger/index.d.ts",
+      "import": "./dist/logger/index.js"
+    },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "import": "./dist/cli/index.js"
+    }
   },
-  "keywords": [],
+  "bin": {
+    "telaio": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc",
+    "build:check": "tsc --noEmit",
+    "dev": "tsc --watch",
+    "format": "biome check --write --unsafe",
+    "lint": "biome check",
+    "test": "biome check && vitest run",
+    "test:unit": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:types": "vitest typecheck",
+    "test:all": "vitest run && vitest run --config vitest.integration.config.ts && vitest run --config vitest.e2e.config.ts && vitest typecheck",
+    "prepublishOnly": "pnpm build"
+  },
+  "keywords": [
+    "fastify",
+    "framework",
+    "typescript",
+    "kysely",
+    "typebox"
+  ],
   "author": "Niranjan Rajendran (https://github.com/niranjan94)",
   "license": "MIT",
   "repository": {
@@ -28,11 +99,111 @@
   "engines": {
     "node": ">=20"
   },
-  "dependencies": { },
+  "dependencies": {
+    "dayjs": "^1.11.0",
+    "dotenv": "^16.0.0",
+    "es-toolkit": "^1.32.0",
+    "fast-glob": "^3.3.0",
+    "fastify": "^5.0.0",
+    "fastify-plugin": "^5.0.0",
+    "pino": "^10.0.0",
+    "typebox": "^1.0.0",
+    "zod": "^4.0.0"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/client-ses": "^3.0.0",
+    "@fastify/autoload": "^6.0.0",
+    "@fastify/compress": "^8.0.0",
+    "@fastify/cookie": "^11.0.0",
+    "@fastify/cors": "^11.0.0",
+    "@fastify/helmet": "^13.0.0",
+    "@fastify/multipart": "^9.0.0",
+    "@fastify/swagger": "^9.0.0",
+    "@fastify/websocket": "^11.0.0",
+    "@hey-api/openapi-ts": "^0.90.0",
+    "@react-email/components": ">=0.0.30",
+    "@scalar/api-reference": ">=1.0.0",
+    "commander": "^13.0.0",
+    "fastify-sse-v2": "^4.0.0",
+    "kysely": "^0.28.0",
+    "kysely-codegen": ">=0.18.0",
+    "pg": "^8.0.0",
+    "pg-boss": "^12.0.0",
+    "react-email": ">=4.0.0",
+    "redis": "^5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@aws-sdk/client-s3": {
+      "optional": true
+    },
+    "@aws-sdk/client-ses": {
+      "optional": true
+    },
+    "@fastify/autoload": {
+      "optional": true
+    },
+    "@fastify/compress": {
+      "optional": true
+    },
+    "@fastify/cookie": {
+      "optional": true
+    },
+    "@fastify/cors": {
+      "optional": true
+    },
+    "@fastify/helmet": {
+      "optional": true
+    },
+    "@fastify/multipart": {
+      "optional": true
+    },
+    "@fastify/swagger": {
+      "optional": true
+    },
+    "@fastify/websocket": {
+      "optional": true
+    },
+    "@hey-api/openapi-ts": {
+      "optional": true
+    },
+    "@react-email/components": {
+      "optional": true
+    },
+    "@scalar/api-reference": {
+      "optional": true
+    },
+    "commander": {
+      "optional": true
+    },
+    "fastify-sse-v2": {
+      "optional": true
+    },
+    "kysely": {
+      "optional": true
+    },
+    "kysely-codegen": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "pg-boss": {
+      "optional": true
+    },
+    "react-email": {
+      "optional": true
+    },
+    "redis": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^24.10.13",
+    "@types/pg": "^8.0.0",
+    "postgres-array": "^3.0.4",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   }
