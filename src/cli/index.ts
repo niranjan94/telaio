@@ -1,13 +1,7 @@
 #!/usr/bin/env node
-
 // Register tsx/esm loader so TypeScript files can be imported at runtime
 // (e.g. migration files, queue registries). Silently skipped if tsx not installed.
-try {
-  const { register } = await import('node:module');
-  register('tsx/esm', import.meta.url);
-} catch {
-  // tsx not installed, skip silently
-}
+import 'tsx/esm';
 
 import { Command } from 'commander';
 import { registerBuildCommand } from './build.js';

@@ -92,6 +92,7 @@ export function registerGenClientCommand(program: Command): void {
 
         await app.fastify.close();
         console.log('Client generated successfully.');
+        process.exit(0);
       },
     );
 }
