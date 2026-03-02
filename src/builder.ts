@@ -1,0 +1,204 @@
+import { randomUUID } from 'node:crypto';
+import fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
+import type { Logger } from 'pino';
+import { createLogger } from './logger/index.js';
+import { registerBuiltinSchemas, registerSchemas } from './schema/index.js';
+import { registerHooks } from './server/hooks.js';
+import { type PluginOptions, registerPlugins } from './server/plugins.js';
+import { registerScalar, type ScalarOptions } from './server/scalar.js';
+import { registerSwagger, type SwaggerOptions } from './server/swagger.js';
+import type {
+  DefaultFeatures,
+  Features,
+  StartOptions,
+  TelaioApp,
+} from './types.js';
+
+/** Options passed to createApp(). */
+export interface CreateAppOptions<
+  TConfig extends Record<string, unknown> = Record<string, never>,
+> {
+  config?: TConfig;
+  logger?: Logger;
+}
+
+/**
+ * Fluent builder for constructing a TelaioApp.
+ * Features are tracked as phantom type parameters for compile-time safety.
+ */
+export class AppBuilder<
+  F extends Features = DefaultFeatures,
+  TSession = unknown,
+  TConfig extends Record<string, unknown> = Record<string, never>,
+> {
+  private _config: TConfig;
+  private _logger: Logger;
+  private _pluginOptions: PluginOptions = {};
+  private _swaggerOptions: SwaggerOptions | null = null;
+  private _scalarOptions: ScalarOptions | null = null;
+  private _schemasDir: string | null = null;
+  private _onReady: (() => Promise<void>) | null = null;
+  private _onClose: (() => Promise<void>) | null = null;
+  private _ephemeral = false;
+
+  constructor(options: CreateAppOptions<TConfig> = {}) {
+    this._config = (options.config ?? {}) as TConfig;
+    this._logger = options.logger ?? createLogger({ pretty: false });
+  }
+
+  /** Configure Fastify plugin registration options. */
+  withPlugins(options: PluginOptions): AppBuilder<F, TSession, TConfig> {
+    this._pluginOptions = { ...this._pluginOptions, ...options };
+    return this;
+  }
+
+  /** Configure OpenAPI/Swagger spec generation. */
+  withSwagger(options: SwaggerOptions): AppBuilder<F, TSession, TConfig> {
+    this._swaggerOptions = options;
+    return this;
+  }
+
+  /** Enable Scalar API documentation UI. */
+  withApiDocs(
+    options?: ScalarOptions,
+  ): AppBuilder<F & { apiDocs: true }, TSession, TConfig> {
+    this._scalarOptions = options ?? {};
+    return this as unknown as AppBuilder<
+      F & { apiDocs: true },
+      TSession,
+      TConfig
+    >;
+  }
+
+  /** Set the directory for auto-registering TypeBox schemas. */
+  withSchemas(schemasDir: string): AppBuilder<F, TSession, TConfig> {
+    this._schemasDir = schemasDir;
+    return this;
+  }
+
+  /** Register a callback to run when the server is ready. */
+  onReady(fn: () => Promise<void>): AppBuilder<F, TSession, TConfig> {
+    this._onReady = fn;
+    return this;
+  }
+
+  /** Register a callback to run when the server is closing. */
+  onClose(fn: () => Promise<void>): AppBuilder<F, TSession, TConfig> {
+    this._onClose = fn;
+    return this;
+  }
+
+  /**
+   * Mark this build as ephemeral (for client generation).
+   * Skips hooks but registers plugins + schemas.
+   */
+  asEphemeral(): AppBuilder<F, TSession, TConfig> {
+    this._ephemeral = true;
+    return this;
+  }
+
+  /** Build and return the configured TelaioApp. */
+  async build(): Promise<TelaioApp<F, TSession, TConfig>> {
+    const logger = this._logger;
+    const config = this._config;
+
+    // Resolve baseDir from config or cwd
+    const baseDir =
+      ((config as Record<string, unknown>).BASE_DIR as string | undefined) ??
+      process.cwd();
+
+    // Resolve trustProxy from config
+    const trustProxy =
+      ((config as Record<string, unknown>).WHITELIST_PROXIES as string[]) ??
+      undefined;
+
+    const app: FastifyInstance = fastify({
+      genReqId() {
+        return randomUUID();
+      },
+      loggerInstance: logger.child({}) as FastifyBaseLogger,
+      trustProxy,
+      disableRequestLogging: true,
+      exposeHeadRoutes: false,
+    });
+
+    // 1. Register plugins (ordered)
+    await registerPlugins(app, this._pluginOptions, { logger, baseDir });
+
+    // 2. Register swagger (before schemas, before scalar)
+    if (this._swaggerOptions) {
+      await registerSwagger(app, this._swaggerOptions);
+    } else {
+      // Register with minimal defaults so .withApiDocs() works
+      const appName =
+        ((config as Record<string, unknown>).APP_NAME as string | undefined) ??
+        'API';
+      await registerSwagger(app, { info: { title: appName } });
+    }
+
+    // 3. Register built-in schemas
+    await registerBuiltinSchemas(app);
+
+    // 4. Register user schemas from directory
+    if (this._schemasDir) {
+      await registerSchemas(app, this._schemasDir);
+    }
+
+    // 5. Register Scalar API docs
+    if (this._scalarOptions) {
+      registerScalar(app, this._scalarOptions);
+    }
+
+    // 6. Register hooks (unless ephemeral)
+    if (!this._ephemeral) {
+      await registerHooks(app, {
+        logger,
+        onReady: this._onReady ?? undefined,
+        onClose: this._onClose ?? undefined,
+      });
+    }
+
+    const telaioApp: TelaioApp<F, TSession, TConfig> = {
+      fastify: app,
+      config,
+      logger,
+
+      async start(options?: StartOptions) {
+        const port =
+          options?.port ??
+          ((config as Record<string, unknown>).API_LISTEN_PORT as
+            | number
+            | undefined) ??
+          4001;
+        const host =
+          options?.host ??
+          ((config as Record<string, unknown>).API_LISTEN_ADDRESS as
+            | string
+            | undefined) ??
+          '0.0.0.0';
+
+        await app.listen({ port, host });
+        logger.info({ port, host }, 'server started');
+      },
+
+      async stop() {
+        await app.close();
+        logger.info('server stopped');
+      },
+    } as TelaioApp<F, TSession, TConfig>;
+
+    return telaioApp;
+  }
+}
+
+/**
+ * Creates a new AppBuilder for fluent app construction.
+ * Pass a validated config object to make it available throughout the app.
+ */
+export function createApp<
+  TConfig extends Record<string, unknown> = Record<string, never>,
+>(
+  options?: CreateAppOptions<TConfig>,
+): AppBuilder<DefaultFeatures, unknown, TConfig> {
+  return new AppBuilder(options);
+}
