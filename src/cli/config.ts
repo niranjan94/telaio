@@ -5,6 +5,8 @@ import path from 'node:path';
 export interface TelaioConfig {
   /** Path to app module (for gen-client, consumer). */
   app?: string;
+  /** Path to telaio config file (overrides auto-discovery). */
+  config?: string;
   /** Client generation options. */
   client?: {
     output?: string;

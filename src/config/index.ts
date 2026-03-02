@@ -23,6 +23,50 @@ import {
 export { loadEnv } from './loader.js';
 export { csvString, envBoolean } from './schemas.js';
 
+/** Brand symbol used to identify `defineConfig()` results. */
+const TELAIO_CONFIG_BRAND = Symbol.for('telaio-config');
+
+/** Options accepted by `defineConfig()` -- excludes runtime-only fields. */
+export type DefineConfigOptions<
+  TFlags extends ConfigModuleFlags = ConfigModuleFlags,
+  TExtend extends z.ZodType = z.ZodObject<Record<string, never>>,
+> = Omit<LoadConfigOptions<TFlags, TExtend>, 'skipEnvLoad' | 'source'>;
+
+/** Branded result returned by `defineConfig()`. */
+export type DefineConfigResult<
+  TFlags extends ConfigModuleFlags = ConfigModuleFlags,
+  TExtend extends z.ZodType = z.ZodObject<Record<string, never>>,
+> = DefineConfigOptions<TFlags, TExtend> & {
+  readonly [K: symbol]: true;
+};
+
+/**
+ * Declares config options for the telaio CLI to resolve at runtime.
+ * Works like `vitest.config.ts` -- the CLI discovers `telaio.config.ts`,
+ * imports it, and calls `loadConfigAsync()` with the provided options.
+ */
+export function defineConfig<
+  const TFlags extends ConfigModuleFlags,
+  TExtend extends z.ZodType = z.ZodObject<Record<string, never>>,
+>(
+  options: DefineConfigOptions<TFlags, TExtend>,
+): DefineConfigResult<TFlags, TExtend> {
+  return Object.assign({}, options, {
+    [TELAIO_CONFIG_BRAND]: true as const,
+  }) as DefineConfigResult<TFlags, TExtend>;
+}
+
+/** Type guard that checks whether a value was produced by `defineConfig()`. */
+export function isDefineConfigResult(
+  value: unknown,
+): value is DefineConfigResult {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as Record<symbol, unknown>)[TELAIO_CONFIG_BRAND] === true
+  );
+}
+
 export type {
   CacheConfig,
   CoreConfig,

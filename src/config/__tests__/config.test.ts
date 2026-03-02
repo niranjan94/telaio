@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { loadConfig } from '../index.js';
+import { defineConfig, isDefineConfigResult, loadConfig } from '../index.js';
 
 describe('loadConfig', () => {
   it('returns core config with defaults', () => {
@@ -137,5 +137,54 @@ describe('loadConfig', () => {
         source: {},
       }),
     ).toThrow();
+  });
+});
+
+describe('defineConfig', () => {
+  it('brands the options with the telaio config symbol', () => {
+    const result = defineConfig({ flags: { database: true } });
+    expect(isDefineConfigResult(result)).toBe(true);
+  });
+
+  it('preserves flags and extend options', () => {
+    const extend = z.object({ CUSTOM: z.string() });
+    const result = defineConfig({
+      flags: { database: true, cache: true },
+      extend,
+    });
+    expect(result.flags).toEqual({ database: true, cache: true });
+    expect(result.extend).toBe(extend);
+  });
+
+  it('omits skipEnvLoad and source from the type', () => {
+    // These should not be settable via defineConfig
+    const result = defineConfig({ flags: { server: true } });
+    expect(result).not.toHaveProperty('skipEnvLoad');
+    expect(result).not.toHaveProperty('source');
+  });
+
+  it('works with no options', () => {
+    const result = defineConfig({});
+    expect(isDefineConfigResult(result)).toBe(true);
+  });
+});
+
+describe('isDefineConfigResult', () => {
+  it('returns true for defineConfig results', () => {
+    expect(isDefineConfigResult(defineConfig({}))).toBe(true);
+  });
+
+  it('returns false for plain objects', () => {
+    expect(isDefineConfigResult({ flags: { database: true } })).toBe(false);
+  });
+
+  it('returns false for null', () => {
+    expect(isDefineConfigResult(null)).toBe(false);
+  });
+
+  it('returns false for primitives', () => {
+    expect(isDefineConfigResult('hello')).toBe(false);
+    expect(isDefineConfigResult(42)).toBe(false);
+    expect(isDefineConfigResult(undefined)).toBe(false);
   });
 });

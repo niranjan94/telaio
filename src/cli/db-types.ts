@@ -1,6 +1,8 @@
 import { execSync } from 'node:child_process';
 import type { Command } from 'commander';
 
+import { resolveCliConfig } from './resolve-config.js';
+
 /** Registers the `telaio db:types` command. */
 export function registerDbTypesCommand(program: Command): void {
   program
@@ -21,6 +23,13 @@ export function registerDbTypesCommand(program: Command): void {
         singularize: boolean;
         configFile?: string;
       }) => {
+        const appConfig = await resolveCliConfig(process.cwd());
+
+        // kysely-codegen reads DATABASE_URL from env
+        if (appConfig.DATABASE_URL && !process.env.DATABASE_URL) {
+          process.env.DATABASE_URL = appConfig.DATABASE_URL as string;
+        }
+
         const args: string[] = ['kysely-codegen'];
 
         args.push('--out-file', options.outFile);

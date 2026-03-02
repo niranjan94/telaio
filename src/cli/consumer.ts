@@ -1,5 +1,6 @@
 import type { Command } from 'commander';
 import { readTelaioConfig } from './config.js';
+import { resolveCliConfig } from './resolve-config.js';
 
 /** Registers the `telaio consumer` CLI command. */
 export function registerConsumerCommand(program: Command): void {
@@ -11,8 +12,10 @@ export function registerConsumerCommand(program: Command): void {
       'Path to queue registry module (exports { queues })',
     )
     .action(async (options: { registry?: string }) => {
-      const config = readTelaioConfig(process.cwd());
-      const registryPath = options.registry ?? config.consumer?.registry;
+      const cwd = process.cwd();
+      const appConfig = await resolveCliConfig(cwd);
+      const telaioConfig = readTelaioConfig(cwd);
+      const registryPath = options.registry ?? telaioConfig.consumer?.registry;
 
       if (!registryPath) {
         throw new Error(
@@ -20,10 +23,16 @@ export function registerConsumerCommand(program: Command): void {
         );
       }
 
+      const databaseUrl = appConfig.DATABASE_URL as string | undefined;
+      if (!databaseUrl) {
+        throw new Error(
+          'telaio: DATABASE_URL is required for the consumer. ' +
+            'Set it in your .env or telaio.config.ts.',
+        );
+      }
+
       // Dynamic import of the registry module
-      const mod = await import(
-        new URL(registryPath, `file://${process.cwd()}/`).href
-      );
+      const mod = await import(new URL(registryPath, `file://${cwd}/`).href);
       const queues = mod.queues ?? mod.default;
 
       if (!queues || typeof queues !== 'object') {
@@ -37,12 +46,13 @@ export function registerConsumerCommand(program: Command): void {
       const { startConsumer } = await import('../queue/consumer.js');
       const { createLogger } = await import('../logger/index.js');
 
+      const nodeEnv = (appConfig.NODE_ENV as string) ?? process.env.NODE_ENV;
       const logger = createLogger({
-        pretty: process.env.NODE_ENV !== 'production',
+        pretty: nodeEnv !== 'production',
       });
 
       await startConsumer(queues, {
-        connection: { connectionString: process.env.DATABASE_URL },
+        connection: { connectionString: databaseUrl },
         logger,
       });
     });

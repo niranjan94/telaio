@@ -2,6 +2,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { Command } from 'commander';
 
+import { resolveCliConfig } from './resolve-config.js';
+
 /** Migration file template. */
 const MIGRATION_TEMPLATE = `import type { Kysely } from 'kysely';
 
@@ -86,8 +88,9 @@ export function registerMigrateCommand(program: Command): void {
     .description('Show migration status')
     .option('-d, --dir <directory>', 'Migration directory', 'src/db/migrations')
     .action(async (options: { dir: string }) => {
+      const appConfig = await resolveCliConfig(process.cwd());
       const { FileMigrationProvider, Migrator } = await importKysely();
-      const db = await getDb();
+      const db = await getDb(appConfig);
       const migrationDir = path.resolve(options.dir);
 
       const migrator = new Migrator({
@@ -144,8 +147,9 @@ async function runMigration(
     }
   }
 
+  const appConfig = await resolveCliConfig(process.cwd());
   const { FileMigrationProvider, Migrator } = await importKysely();
-  const db = await getDb();
+  const db = await getDb(appConfig);
   const migrationDir = path.resolve(options.dir);
 
   const migrator = new Migrator({
@@ -202,12 +206,13 @@ async function importKysely() {
   }
 }
 
-/** Gets a Kysely database instance from the environment. */
-async function getDb() {
-  const connectionString = process.env.DATABASE_URL;
+/** Gets a Kysely database instance from the resolved app config. */
+async function getDb(appConfig: Record<string, unknown>) {
+  const connectionString = appConfig.DATABASE_URL as string | undefined;
   if (!connectionString) {
     throw new Error(
-      'telaio: DATABASE_URL environment variable is required for migrations.',
+      'telaio: DATABASE_URL is required for migrations. ' +
+        'Set it in your .env or telaio.config.ts.',
     );
   }
 
