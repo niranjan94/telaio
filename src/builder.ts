@@ -20,7 +20,11 @@ import {
 } from './queue/producer.js';
 import { registerBuiltinSchemas, registerSchemas } from './schema/index.js';
 import { registerHooks } from './server/hooks.js';
-import { type PluginOptions, registerPlugins } from './server/plugins.js';
+import {
+  type PluginOptions,
+  registerAutoload,
+  registerPlugins,
+} from './server/plugins.js';
 import { registerScalar, type ScalarOptions } from './server/scalar.js';
 import { registerSwagger, type SwaggerOptions } from './server/swagger.js';
 import type {
@@ -280,10 +284,14 @@ export class AppBuilder<
         );
     }
 
-    // 1. Register plugins (ordered)
-    await registerPlugins(app, this._pluginOptions, { logger, baseDir });
+    // 1. Register plugins (without autoload -- routes must come after swagger)
+    await registerPlugins(app, this._pluginOptions, {
+      logger,
+      baseDir,
+      skipAutoload: true,
+    });
 
-    // 2. Register swagger (before schemas, before scalar)
+    // 2. Register swagger (before routes, so onRoute hook captures them)
     if (this._swaggerOptions) {
       await registerSwagger(app, this._swaggerOptions);
     } else {
@@ -315,6 +323,9 @@ export class AppBuilder<
     if (this._scalarOptions) {
       registerScalar(app, this._scalarOptions);
     }
+
+    // 5b. Register autoload (routes) AFTER swagger so routes are captured
+    await registerAutoload(app, this._pluginOptions, { logger, baseDir });
 
     // 6. Register hooks (unless ephemeral)
     if (!this._ephemeral) {

@@ -9,6 +9,7 @@ export {
   type HelmetOptions,
   type MultipartOptions,
   type PluginOptions,
+  registerAutoload,
   registerPlugins,
   type WebsocketOptions,
 } from './plugins.js';

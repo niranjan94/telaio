@@ -94,6 +94,8 @@ async function tryImport(moduleName: string): Promise<any | null> {
  * Registers Fastify plugins in the correct order.
  * Plugins whose peer dep is not installed are silently skipped
  * unless explicitly enabled (truthy value in options).
+ *
+ * @param skipAutoload - If true, skips autoload registration (caller will handle it separately).
  */
 export async function registerPlugins(
   server: FastifyInstance,
@@ -101,6 +103,7 @@ export async function registerPlugins(
   options: {
     logger: Logger;
     baseDir: string;
+    skipAutoload?: boolean;
   },
 ) {
   const { logger, baseDir } = options;
@@ -217,7 +220,7 @@ export async function registerPlugins(
   }
 
   // 8. Autoload (registered last, after all plugins and schemas)
-  if (pluginOptions.autoload !== false) {
+  if (!options.skipAutoload && pluginOptions.autoload !== false) {
     const mod = await tryImport('@fastify/autoload');
     if (mod) {
       const autoloadConfig =
@@ -233,5 +236,33 @@ export async function registerPlugins(
         cascadeHooks: autoloadConfig.cascadeHooks ?? true,
       });
     }
+  }
+}
+
+/**
+ * Registers @fastify/autoload separately from other plugins.
+ * Used when autoload must run after swagger registration so that
+ * routes are discovered by the swagger onRoute hook.
+ */
+export async function registerAutoload(
+  server: FastifyInstance,
+  pluginOptions: PluginOptions,
+  options: { logger: Logger; baseDir: string },
+) {
+  if (pluginOptions.autoload === false) return;
+
+  const mod = await tryImport('@fastify/autoload');
+  if (mod) {
+    const autoloadConfig =
+      typeof pluginOptions.autoload === 'object' ? pluginOptions.autoload : {};
+    const routesDir =
+      autoloadConfig.dir ?? path.join(options.baseDir, 'routes');
+    options.logger.debug({ routesDir }, 'autoloading routes');
+    await server.register(mod.default, {
+      dir: routesDir,
+      routeParams: autoloadConfig.routeParams ?? true,
+      autoHooks: autoloadConfig.autoHooks ?? true,
+      cascadeHooks: autoloadConfig.cascadeHooks ?? true,
+    });
   }
 }
