@@ -131,7 +131,8 @@
     "pg": "^8.0.0",
     "pg-boss": "^12.0.0",
     "react-email": ">=4.0.0",
-    "redis": "^5.0.0"
+    "redis": "^5.0.0",
+    "tsx": ">=4.0.0"
   },
   "peerDependenciesMeta": {
     "@aws-sdk/client-s3": {
@@ -195,6 +196,9 @@
       "optional": true
     },
     "redis": {
+      "optional": true
+    },
+    "tsx": {
       "optional": true
     }
   },
