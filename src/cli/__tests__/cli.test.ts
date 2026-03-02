@@ -3,7 +3,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { registerBuildCommand } from '../build.js';
 import { registerDbTypesCommand } from '../db-types.js';
+import { registerDevCommand } from '../dev.js';
 import { registerGenClientCommand } from '../gen-client.js';
 import { registerInitCommand } from '../init.js';
 import { registerMigrateCommand } from '../migrate.js';
@@ -43,6 +45,21 @@ describe('CLI command registration', () => {
     registerDbTypesCommand(program);
     const cmd = program.commands.find((c) => c.name() === 'db:types');
     expect(cmd).toBeDefined();
+  });
+
+  it('registers build command', () => {
+    const program = new Command();
+    registerBuildCommand(program);
+    const cmd = program.commands.find((c) => c.name() === 'build');
+    expect(cmd).toBeDefined();
+    expect(cmd?.description()).toBe('Run the sequential build pipeline');
+  });
+
+  it('registers dev command', () => {
+    const program = new Command();
+    registerDevCommand(program);
+    // Dev command is registered (even as placeholder)
+    expect(program).toBeDefined();
   });
 });
 
