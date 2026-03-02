@@ -1,26 +1,48 @@
 import type { Command } from 'commander';
+import { readTelaioConfig } from './config.js';
 
 /** Registers the `telaio gen-client` command. */
 export function registerGenClientCommand(program: Command): void {
   program
     .command('gen-client')
     .description('Generate a typed OpenAPI client from the app swagger spec')
-    .requiredOption(
+    .option(
       '-a, --app <path>',
       'Path to the app module (must export { app } with a .fastify instance)',
     )
-    .option(
-      '-o, --output <directory>',
-      'Output directory for generated client',
-      'client',
-    )
-    .option(
-      '--plugins <plugins>',
-      'Comma-separated list of hey-api plugins',
-      '@tanstack/react-query,@hey-api/typescript,@hey-api/schemas',
-    )
+    .option('-o, --output <directory>', 'Output directory for generated client')
+    .option('--plugins <plugins>', 'Comma-separated list of hey-api plugins')
     .action(
-      async (options: { app: string; output: string; plugins: string }) => {
+      async (options: { app?: string; output?: string; plugins?: string }) => {
+        const config = readTelaioConfig(process.cwd());
+
+        const appPath = options.app ?? config.app;
+        if (!appPath) {
+          throw new Error(
+            'telaio: gen-client requires an app path. Set telaio.app in package.json or pass --app.',
+          );
+        }
+
+        const output = options.output ?? config.client?.output ?? 'client';
+
+        // Resolve plugins: CLI flag > config > default
+        let plugins: (string | Record<string, unknown>)[];
+        if (options.plugins) {
+          plugins = options.plugins.split(',').map((p: string) => {
+            const trimmed = p.trim();
+            if (trimmed.startsWith('{')) return JSON.parse(trimmed);
+            return trimmed;
+          });
+        } else if (config.client?.plugins) {
+          plugins = config.client.plugins;
+        } else {
+          plugins = [
+            '@tanstack/react-query',
+            '@hey-api/typescript',
+            '@hey-api/schemas',
+          ];
+        }
+
         // biome-ignore lint/suspicious/noExplicitAny: hey-api createClient has complex overloaded types
         let createClient: (...args: any[]) => Promise<unknown>;
         try {
@@ -34,13 +56,13 @@ export function registerGenClientCommand(program: Command): void {
 
         // Dynamically import the user's app module
         const appModule = await import(
-          new URL(options.app, `file://${process.cwd()}/`).href
+          new URL(appPath, `file://${process.cwd()}/`).href
         );
         const app = appModule.app ?? appModule.default;
 
         if (!app?.fastify) {
           throw new Error(
-            `telaio: gen-client could not find a TelaioApp export at '${options.app}'. ` +
+            `telaio: gen-client could not find a TelaioApp export at '${appPath}'. ` +
               'The module must export { app } with a .fastify instance.',
           );
         }
@@ -56,23 +78,12 @@ export function registerGenClientCommand(program: Command): void {
           );
         }
 
-        // Parse plugins
-        const plugins = options.plugins.split(',').map((p: string) => {
-          const trimmed = p.trim();
-          // Simple string plugins are passed as-is; object-style plugins need
-          // special handling which users can do in a custom script
-          if (trimmed.startsWith('{')) {
-            return JSON.parse(trimmed);
-          }
-          return trimmed;
-        });
-
-        console.log(`Generating client to ${options.output}...`);
+        console.log(`Generating client to ${output}...`);
 
         await createClient({
           input: swagger,
           output: {
-            path: options.output,
+            path: output,
             importFileExtension: '.js',
             postProcess: ['biome:lint', 'biome:format'],
           },

@@ -39,15 +39,14 @@ function shouldEnableSsl(
  * Accepts either a config object with DATABASE_URL/DATABASE_SSL keys or direct PoolOptions.
  * Automatically enables SSL for AWS RDS endpoints.
  */
-export function createPool(
+export async function createPool(
   options: PoolOptions | Record<string, unknown>,
   poolLogger?: Logger,
-): import('pg').Pool {
+): Promise<import('pg').Pool> {
   // biome-ignore lint/suspicious/noExplicitAny: peer dep types
   let pg: any;
   try {
-    // biome-ignore lint/suspicious/noExplicitAny: dynamic peer dep
-    pg = (globalThis as any).__telaio_pg ?? require('pg');
+    pg = await import('pg');
   } catch {
     throw new Error(
       "telaio: createPool() requires 'pg' to be installed. Run: pnpm add pg",
@@ -122,7 +121,7 @@ export async function registerCitextParser(
   // biome-ignore lint/suspicious/noExplicitAny: pg.types varies
   let pgTypes: any;
   try {
-    pgTypes = require('pg').types;
+    pgTypes = (await import('pg')).types;
   } catch {
     return;
   }
@@ -145,14 +144,14 @@ export async function registerCitextParser(
  * Creates a Kysely database instance wrapping an existing pool.
  * Automatically applies CamelCasePlugin for snake_case to camelCase mapping.
  */
-export function createDatabase<DB>(
+export async function createDatabase<DB>(
   pool: import('pg').Pool,
   options?: DatabaseOptions,
-): import('kysely').Kysely<DB> {
+): Promise<import('kysely').Kysely<DB>> {
   // biome-ignore lint/suspicious/noExplicitAny: peer dep types
   let kysely: any;
   try {
-    kysely = require('kysely');
+    kysely = await import('kysely');
   } catch {
     throw new Error(
       "telaio: createDatabase() requires 'kysely' to be installed. Run: pnpm add kysely",

@@ -17,13 +17,13 @@ export interface S3ClientConfig {
  *
  * Requires `@aws-sdk/client-s3` as a peer dependency.
  */
-export function createS3Client(
+export async function createS3Client(
   clientConfig: S3ClientConfig,
   // biome-ignore lint/suspicious/noExplicitAny: S3Client type from optional peer dep
-): any {
+): Promise<any> {
   let S3ClientClass: new (opts: Record<string, unknown>) => unknown;
   try {
-    const mod = require('@aws-sdk/client-s3');
+    const mod = await import('@aws-sdk/client-s3');
     S3ClientClass = mod.S3Client;
   } catch {
     throw new Error(

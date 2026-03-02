@@ -27,19 +27,13 @@ export async function sendReactEmail(
   options: EmailSendOptions,
   config: EmailConfig,
 ): Promise<void> {
-  let SES: new (
-    opts: Record<string, unknown>,
-  ) => {
-    sendEmail: (params: unknown) => Promise<unknown>;
-  };
-  let render: (
-    element: unknown,
-    options?: Record<string, unknown>,
-  ) => Promise<string>;
+  // biome-ignore lint/suspicious/noExplicitAny: peer dep types from dynamic import
+  let sesMod: any;
+  // biome-ignore lint/suspicious/noExplicitAny: peer dep types from dynamic import
+  let render: any;
 
   try {
-    const sesMod = require('@aws-sdk/client-ses');
-    SES = sesMod.SES;
+    sesMod = await import('@aws-sdk/client-ses');
   } catch {
     throw new Error(
       "telaio: sendReactEmail() requires '@aws-sdk/client-ses' to be installed. Run: pnpm add @aws-sdk/client-ses",
@@ -47,7 +41,7 @@ export async function sendReactEmail(
   }
 
   try {
-    const emailMod = require('@react-email/components');
+    const emailMod = await import('@react-email/components');
     render = emailMod.render;
   } catch {
     throw new Error(
@@ -55,7 +49,7 @@ export async function sendReactEmail(
     );
   }
 
-  const ses = new SES({ region: config.region });
+  const ses = new sesMod.SES({ region: config.region });
 
   const [html, text] = await Promise.all([
     render(options.react),

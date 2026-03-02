@@ -248,13 +248,13 @@ export class AppBuilder<
       // Resolve pool: use provided or create from config/options
       pool =
         dbOpts.pool ??
-        createPool(
+        (await createPool(
           dbOpts.poolOptions ?? (config as Record<string, unknown>),
           logger,
-        );
+        ));
 
       // Resolve db: use provided or create from pool
-      db = dbOpts.db ?? createDatabase(pool, dbOpts.databaseOptions);
+      db = dbOpts.db ?? (await createDatabase(pool, dbOpts.databaseOptions));
 
       // Register CITEXT parser unless explicitly disabled
       if (dbOpts.citext !== false) {

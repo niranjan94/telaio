@@ -2,6 +2,7 @@
 
 import { Command } from 'commander';
 import { registerBuildCommand } from './build.js';
+import { registerConsumerCommand } from './consumer.js';
 import { registerDbTypesCommand } from './db-types.js';
 import { registerDevCommand } from './dev.js';
 import { registerGenClientCommand } from './gen-client.js';
@@ -21,5 +22,6 @@ registerGenClientCommand(program);
 registerDbTypesCommand(program);
 registerBuildCommand(program);
 registerDevCommand(program);
+registerConsumerCommand(program);
 
 await program.parseAsync(process.argv);

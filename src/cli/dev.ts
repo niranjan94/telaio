@@ -1,7 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
 import type { Command } from 'commander';
+import { readTelaioConfig } from './config.js';
 
 /** Color codes for process label prefixes, cycled through in order. */
 const LABEL_COLORS = [
@@ -31,13 +30,8 @@ interface DevConfig {
  * Returns an empty processes array if the key is missing.
  */
 export function readDevConfig(cwd: string): DevConfig {
-  const pkgPath = path.join(cwd, 'package.json');
-  if (!fs.existsSync(pkgPath)) {
-    return { processes: [] };
-  }
-
-  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-  return (pkg.telaio?.dev as DevConfig) ?? { processes: [] };
+  const config = readTelaioConfig(cwd);
+  return config.dev ?? { processes: [] };
 }
 
 /**

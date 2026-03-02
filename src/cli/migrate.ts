@@ -212,6 +212,6 @@ async function getDb() {
   }
 
   const { createPool, createDatabase } = await import('../db/client.js');
-  const pool = createPool({ connectionString });
+  const pool = await createPool({ connectionString });
   return createDatabase(pool);
 }

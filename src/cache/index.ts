@@ -34,11 +34,11 @@ export class Cache {
     this._initRedis(options?.url);
   }
 
-  private _initRedis(url?: string): void {
+  private async _initRedis(url?: string): Promise<void> {
     // biome-ignore lint/suspicious/noExplicitAny: peer dep types
     let redis: any;
     try {
-      redis = require('redis');
+      redis = await import('redis');
     } catch {
       this._logger.warn('redis package not installed, caching disabled');
       return;

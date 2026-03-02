@@ -2,15 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { createS3Client } from '../index.js';
 
 describe('createS3Client', () => {
-  it('creates a client with region only', () => {
-    const client = createS3Client({ region: 'us-east-1' });
+  it('creates a client with region only', async () => {
+    const client = await createS3Client({ region: 'us-east-1' });
     expect(client).toBeDefined();
     // S3Client from the SDK should have a config property
     expect(client.config).toBeDefined();
   });
 
-  it('creates a client with explicit credentials', () => {
-    const client = createS3Client({
+  it('creates a client with explicit credentials', async () => {
+    const client = await createS3Client({
       region: 'us-west-2',
       accessKeyId: 'AKIATEST',
       secretAccessKey: 'secret123',
@@ -18,17 +18,17 @@ describe('createS3Client', () => {
     expect(client).toBeDefined();
   });
 
-  it('creates a client with custom endpoint', () => {
-    const client = createS3Client({
+  it('creates a client with custom endpoint', async () => {
+    const client = await createS3Client({
       region: 'us-east-1',
       endpoint: 'http://localhost:9000',
     });
     expect(client).toBeDefined();
   });
 
-  it('does not set credentials when only accessKeyId is provided', () => {
+  it('does not set credentials when only accessKeyId is provided', async () => {
     // Only accessKeyId without secretAccessKey — should fall back to SDK chain
-    const client = createS3Client({
+    const client = await createS3Client({
       region: 'us-east-1',
       accessKeyId: 'AKIATEST',
     });

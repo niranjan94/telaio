@@ -4,6 +4,7 @@ import path from 'node:path';
 import { Command } from 'commander';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { registerBuildCommand } from '../build.js';
+import { readTelaioConfig } from '../config.js';
 import { registerDbTypesCommand } from '../db-types.js';
 import { parseAddFlag, readDevConfig, registerDevCommand } from '../dev.js';
 import { registerGenClientCommand } from '../gen-client.js';
@@ -171,6 +172,65 @@ describe('telaio migrate create', () => {
     );
     expect(content).toContain('export async function up');
     expect(content).toContain('export async function down');
+  });
+});
+
+describe('readTelaioConfig', () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'telaio-config-'));
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('reads full telaio config from package.json', async () => {
+    const pkg = {
+      name: 'test',
+      telaio: {
+        app: './dist/app.js',
+        client: {
+          output: 'generated',
+          plugins: ['@hey-api/typescript'],
+        },
+        consumer: {
+          registry: './dist/queues.js',
+        },
+        dev: {
+          processes: [{ name: 'api', command: 'tsx watch src/server.ts' }],
+        },
+      },
+    };
+    await fs.writeFile(
+      path.join(tmpDir, 'package.json'),
+      JSON.stringify(pkg),
+      'utf-8',
+    );
+
+    const config = readTelaioConfig(tmpDir);
+    expect(config.app).toBe('./dist/app.js');
+    expect(config.client?.output).toBe('generated');
+    expect(config.client?.plugins).toEqual(['@hey-api/typescript']);
+    expect(config.consumer?.registry).toBe('./dist/queues.js');
+    expect(config.dev?.processes).toHaveLength(1);
+  });
+
+  it('returns empty config when telaio key is missing', async () => {
+    await fs.writeFile(
+      path.join(tmpDir, 'package.json'),
+      JSON.stringify({ name: 'test' }),
+      'utf-8',
+    );
+
+    const config = readTelaioConfig(tmpDir);
+    expect(config).toEqual({});
+  });
+
+  it('returns empty config when package.json is missing', () => {
+    const config = readTelaioConfig(path.join(tmpDir, 'nonexistent'));
+    expect(config).toEqual({});
   });
 });
 

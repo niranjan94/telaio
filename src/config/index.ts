@@ -1,3 +1,4 @@
+import dotenv from 'dotenv';
 import type { ZodRawShape } from 'zod';
 import { z } from 'zod';
 
@@ -104,13 +105,7 @@ export function loadConfig<
   const { flags = {} as TFlags, extend, skipEnvLoad = false, source } = options;
 
   if (!skipEnvLoad) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const dotenv = require('dotenv');
-      dotenv.config({ quiet: true });
-    } catch {
-      // dotenv might not be installed
-    }
+    dotenv.config({ quiet: true });
   }
 
   const shape = collectShapes(flags);

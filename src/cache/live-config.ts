@@ -23,7 +23,9 @@ export interface LiveConfigOptions {
  *
  * The config table shape expected: `live_configs(module TEXT, config JSONB)`
  */
-export class LiveConfigService {
+export class LiveConfigService<
+  TModules extends Record<string, unknown> = Record<string, unknown>,
+> {
   private _cache: Cache;
   // biome-ignore lint/suspicious/noExplicitAny: generic database type
   private _db: any;
@@ -72,12 +74,16 @@ export class LiveConfigService {
    * Returns cached value immediately if available, refreshes in background.
    * Falls back to DB on cache miss.
    */
-  async get<T = Record<string, unknown>>(module: string): Promise<T | null> {
-    const cached = await this._cache.getRecord<T>(this._cacheKey(module));
+  async get<K extends string & keyof TModules>(
+    module: K,
+  ): Promise<TModules[K] | null> {
+    const cached = await this._cache.getRecord<TModules[K]>(
+      this._cacheKey(module),
+    );
 
     if (cached !== null) {
       // SWR: return stale, revalidate in background
-      this._getLatestConfig<T>(module).catch((e) => {
+      this._getLatestConfig<TModules[K]>(module).catch((e) => {
         this._logger?.error(
           { err: e, module },
           'Background config refresh failed',
@@ -86,17 +92,17 @@ export class LiveConfigService {
       return cached;
     }
 
-    // Cache miss — fetch from DB
-    return this._getLatestConfig<T>(module);
+    // Cache miss -- fetch from DB
+    return this._getLatestConfig<TModules[K]>(module);
   }
 
   /**
    * Updates a module's config in both the database and cache.
    * Uses upsert (insert on conflict update) for the database write.
    */
-  async set<T = Record<string, unknown>>(
-    module: string,
-    config: T,
+  async set<K extends string & keyof TModules>(
+    module: K,
+    config: TModules[K],
   ): Promise<void> {
     await this._db
       .insertInto('liveConfigs')
