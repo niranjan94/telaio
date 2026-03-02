@@ -5,5 +5,6 @@ export default defineConfig({
     include: ['tests/e2e/**/*.test.ts'],
     testTimeout: 60_000,
     pool: 'forks',
+    globalSetup: ['tests/e2e/setup.ts'],
   },
 });

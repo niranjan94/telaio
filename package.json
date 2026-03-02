@@ -200,10 +200,12 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",
+    "@testcontainers/postgresql": "^11.12.0",
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^24.10.13",
     "@types/pg": "^8.0.0",
     "postgres-array": "^3.0.4",
+    "testcontainers": "^11.12.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   }

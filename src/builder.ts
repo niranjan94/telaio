@@ -358,9 +358,10 @@ export class AppBuilder<
           await cache.close();
         }
         if (db) {
+          // db.destroy() also ends the underlying pool via PostgresDialect,
+          // so we skip pool.end() to avoid "Called end on pool more than once"
           await db.destroy();
-        }
-        if (pool) {
+        } else if (pool) {
           await pool.end();
         }
         logger.info('server stopped');
