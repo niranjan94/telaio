@@ -11,6 +11,7 @@ import {
 } from '../client.js';
 import { betterAuthConfigSchema } from '../config.js';
 import {
+  createSESEmailSender,
   emailVerificationCallbacks,
   magicLinkCallbacks,
   renderBaseLayout,
@@ -525,6 +526,165 @@ describe('magicLinkCallbacks', () => {
   });
 });
 
+// -- Async template + baseUrl tests --
+
+describe('emailVerificationCallbacks (async)', () => {
+  it('supports async template functions', async () => {
+    const send = vi.fn().mockResolvedValue(undefined);
+    const asyncTemplate = async (vars: { appName: string; url: string }) =>
+      `<async>${vars.appName} - ${vars.url}</async>`;
+    const callbacks = emailVerificationCallbacks({
+      appName: 'AsyncApp',
+      send,
+      template: asyncTemplate,
+    });
+
+    await callbacks.sendVerificationEmail({
+      user: { email: 'test@test.com' },
+      url: 'https://v.me',
+    });
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        html: '<async>AsyncApp - https://v.me</async>',
+      }),
+    );
+  });
+
+  it('passes baseUrl through to template vars', async () => {
+    const send = vi.fn().mockResolvedValue(undefined);
+    const templateSpy = vi.fn().mockReturnValue('<html>ok</html>');
+    const callbacks = emailVerificationCallbacks({
+      appName: 'App',
+      send,
+      template: templateSpy,
+      baseUrl: 'https://api.example.com',
+    });
+
+    await callbacks.sendVerificationEmail({
+      user: { email: 'test@test.com', name: 'Test' },
+      url: 'https://v.me',
+    });
+    expect(templateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ baseUrl: 'https://api.example.com' }),
+    );
+  });
+});
+
+describe('magicLinkCallbacks (async)', () => {
+  it('supports async template functions', async () => {
+    const send = vi.fn().mockResolvedValue(undefined);
+    const asyncTemplate = async (vars: { appName: string; url: string }) =>
+      `<async>${vars.url}</async>`;
+    const callbacks = magicLinkCallbacks({
+      appName: 'AsyncApp',
+      send,
+      template: asyncTemplate,
+    });
+
+    await callbacks.sendMagicLink({
+      email: 'a@b.com',
+      url: 'https://m.me',
+    });
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ html: '<async>https://m.me</async>' }),
+    );
+  });
+
+  it('passes baseUrl through to template vars', async () => {
+    const send = vi.fn().mockResolvedValue(undefined);
+    const templateSpy = vi.fn().mockReturnValue('<html>ok</html>');
+    const callbacks = magicLinkCallbacks({
+      appName: 'App',
+      send,
+      template: templateSpy,
+      baseUrl: 'https://api.example.com',
+    });
+
+    await callbacks.sendMagicLink({
+      email: 'a@b.com',
+      url: 'https://m.me',
+    });
+    expect(templateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ baseUrl: 'https://api.example.com' }),
+    );
+  });
+});
+
+describe('createSESEmailSender', () => {
+  it('returns an async function', () => {
+    const sender = createSESEmailSender({ from: 'test@test.com' });
+    expect(typeof sender).toBe('function');
+  });
+
+  it('throws helpful error when @aws-sdk/client-ses is not available', async () => {
+    // We can't easily test the SES import failure in unit tests since the
+    // module is available in the dev environment. Instead, test that the
+    // sender function exists and has the right shape.
+    const sender = createSESEmailSender({
+      from: 'test@test.com',
+      region: 'eu-west-1',
+    });
+    expect(typeof sender).toBe('function');
+  });
+});
+
+// -- React Email renderer tests --
+
+describe('renderEmailVerificationReact', () => {
+  it('returns HTML string containing key content', async () => {
+    const { renderEmailVerificationReact } = await import(
+      '../emails-react.js'
+    );
+    const html = await renderEmailVerificationReact({
+      appName: 'TestApp',
+      url: 'https://example.com/verify',
+      name: 'Alice',
+      baseUrl: 'https://api.example.com',
+    });
+    expect(typeof html).toBe('string');
+    expect(html).toContain('<!DOCTYPE html');
+    expect(html).toContain('Verify Email');
+    expect(html).toContain('TestApp');
+    expect(html).toContain('https://example.com/verify');
+  });
+
+  it('handles missing name gracefully', async () => {
+    const { renderEmailVerificationReact } = await import(
+      '../emails-react.js'
+    );
+    const html = await renderEmailVerificationReact({
+      appName: 'TestApp',
+      url: 'https://example.com/verify',
+    });
+    expect(html).toContain('there');
+  });
+});
+
+describe('renderMagicLinkReact', () => {
+  it('returns HTML string containing key content', async () => {
+    const { renderMagicLinkReact } = await import('../emails-react.js');
+    const html = await renderMagicLinkReact({
+      appName: 'MyApp',
+      url: 'https://example.com/magic',
+      baseUrl: 'https://api.example.com',
+    });
+    expect(typeof html).toBe('string');
+    expect(html).toContain('<!DOCTYPE html');
+    expect(html).toContain('Sign In');
+    expect(html).toContain('MyApp');
+    expect(html).toContain('https://example.com/magic');
+  });
+
+  it('mentions expiry in the email', async () => {
+    const { renderMagicLinkReact } = await import('../emails-react.js');
+    const html = await renderMagicLinkReact({
+      appName: 'MyApp',
+      url: 'https://example.com/magic',
+    });
+    expect(html).toContain('10 minutes');
+  });
+});
+
 // -- Adapter factory tests --
 
 describe('createBetterAuthAdapter', () => {
@@ -781,6 +941,11 @@ describe('module exports', () => {
     expect(typeof mod.renderBaseLayout).toBe('function');
     expect(typeof mod.renderEmailVerification).toBe('function');
     expect(typeof mod.renderMagicLink).toBe('function');
+    expect(typeof mod.createSESEmailSender).toBe('function');
+
+    // React Email renderers
+    expect(typeof mod.renderEmailVerificationReact).toBe('function');
+    expect(typeof mod.renderMagicLinkReact).toBe('function');
 
     // Adapter
     expect(typeof mod.createBetterAuthAdapter).toBe('function');

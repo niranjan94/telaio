@@ -120,6 +120,7 @@
   "peerDependencies": {
     "@aws-sdk/client-s3": "^3.0.0",
     "@aws-sdk/client-ses": "^3.0.0",
+    "@daveyplate/better-auth-ui": ">=3.0.0",
     "@fastify/autoload": "^6.0.0",
     "@fastify/compress": "^8.0.0",
     "@fastify/cookie": "^11.0.0",
@@ -129,9 +130,12 @@
     "@fastify/swagger": "^9.0.0",
     "@fastify/websocket": "^11.0.0",
     "@hey-api/openapi-ts": "^0.90.0",
+    "@parcel/watcher": "^2.0.0",
     "@react-email/components": ">=0.0.30",
     "@scalar/api-reference": ">=1.0.0",
+    "better-auth": ">=1.0.0",
     "commander": "^13.0.0",
+    "concurrently": "^9.0.0",
     "fastify-sse-v2": "^4.0.0",
     "kysely": "^0.28.0",
     "kysely-codegen": ">=0.18.0",
@@ -139,11 +143,7 @@
     "pg-boss": "^12.0.0",
     "react-email": ">=4.0.0",
     "redis": "^5.0.0",
-    "tsx": ">=4.0.0",
-    "@parcel/watcher": "^2.0.0",
-    "@daveyplate/better-auth-ui": ">=3.0.0",
-    "better-auth": ">=1.0.0",
-    "concurrently": "^9.0.0"
+    "tsx": ">=4.0.0"
   },
   "peerDependenciesMeta": {
     "better-auth": {
@@ -226,17 +226,18 @@
     }
   },
   "devDependencies": {
-    "@daveyplate/better-auth-ui": "^3.0.0",
-    "@types/react": "^19.0.0",
-    "better-auth": "^1.5.0",
     "@biomejs/biome": "^2.4.4",
+    "@daveyplate/better-auth-ui": "^3.0.0",
     "@parcel/watcher": "^2.5.6",
     "@testcontainers/postgresql": "^11.12.0",
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^24.10.13",
     "@types/pg": "^8.0.0",
+    "@types/react": "^19.0.0",
+    "better-auth": "^1.5.0",
     "concurrently": "^9.2.1",
     "postgres-array": "^3.0.4",
+    "react": "^19.2.4",
     "testcontainers": "^11.12.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
