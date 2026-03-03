@@ -7,11 +7,14 @@ TypeScript-first Fastify 5 framework with a builder pattern and phantom types fo
 | Command | Purpose |
 |---------|---------|
 | `pnpm run build` | Clean + compile (`rm -rf dist && tsc`) |
+| `pnpm run build:check` | Type-check without emitting (`tsc --noEmit`) |
+| `pnpm run dev` | Watch mode (`tsc --watch`) |
 | `pnpm run format` | Auto-format with Biome |
-| `pnpm run test` | Lint + unit tests (107 tests) |
-| `pnpm run test:integration` | Integration tests with mocked deps (20 tests) |
-| `pnpm run test:types` | Compile-time type tests (30 tests) |
-| `pnpm run test:e2e` | E2E with testcontainers — requires Docker (14 tests) |
+| `pnpm run test` | Lint (Biome) + unit tests |
+| `pnpm run test:unit` | Unit tests only (no lint) |
+| `pnpm run test:integration` | Integration tests with mocked deps |
+| `pnpm run test:types` | Compile-time type tests |
+| `pnpm run test:e2e` | E2E with testcontainers — requires Docker |
 | `pnpm run test:all` | All four suites sequentially |
 
 **Quality gate after every change:** `pnpm run format && pnpm run build && pnpm run test && pnpm run test:integration`
@@ -25,9 +28,11 @@ src/
   index.ts            # Public API re-exports
   config/             # Composable Zod config with modules
   db/                 # createPool, createDatabase, Kysely migrations
+    query-builders/   # Typed dynamic filters and sort/pagination helpers
   cache/              # Redis wrapper with graceful disabled mode
   queue/              # pg-boss typed producer/consumer
   auth/               # AuthAdapter<TSession> + Fastify plugin
+    better-auth/      # better-auth integration: adapter, session hooks, email templates, SES sender
   email/              # React Email sender via SES
   s3/                 # S3 client factory
   logger/             # Pino logger factory
@@ -56,7 +61,8 @@ src/
 - `db.destroy()` (Kysely) also ends the underlying pg Pool via PostgresDialect — never call both `db.destroy()` and `pool.end()`.
 - Vitest 4 type tests use `vitest run --typecheck.only` (not the old `vitest typecheck` subcommand).
 - E2E tests require Docker running. If Docker is unavailable, tests skip gracefully via `describe.skipIf(skipE2e)`.
-- Config's `InferConfig<Flags, never>` collapses to `never` in Zod v4 — use `loadConfig()` with defaults instead of the generic directly.
+- Config's `InferConfig<Modules, never>` collapses to `never` in Zod v4 — use `loadConfig()` with defaults instead of the generic directly.
+- `telaio/auth/better-auth` React Email renderers (`renderEmailVerificationReact`, `renderMagicLinkReact`) require opt-in peer deps: `@daveyplate/better-auth-ui` and `@react-email/components`.
 
 ## Package Manager
 
