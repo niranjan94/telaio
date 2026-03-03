@@ -10,10 +10,7 @@ import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <main
-      className="relative overflow-hidden"
-      style={{ background: "#09090b" }}
-    >
+    <main className="relative overflow-hidden bg-background">
       {/* Hero Section */}
       <section className="relative grid-bg min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center px-6 py-24 text-center">
         {/* Radial amber glow */}
@@ -35,8 +32,8 @@ export default function HomePage() {
 
         {/* H1 */}
         <h1
-          className="animate-fade-up animation-delay-100 relative z-10 max-w-3xl text-6xl leading-[1.05] font-semibold tracking-tight md:text-7xl"
-          style={{ fontFamily: "var(--font-display)", color: "#fafaf9" }}
+          className="animate-fade-up animation-delay-100 relative z-10 max-w-3xl text-6xl leading-[1.05] font-semibold tracking-tight md:text-7xl text-foreground"
+          style={{ fontFamily: "var(--font-display)" }}
         >
           Build backends
           <br />
@@ -45,12 +42,12 @@ export default function HomePage() {
 
         {/* Subheadline */}
         <p
-          className="animate-fade-up animation-delay-200 mt-6 max-w-xl text-lg leading-relaxed"
-          style={{ color: "#a1a1aa", fontFamily: "var(--font-body)" }}
+          className="animate-fade-up animation-delay-200 mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground"
+          style={{ fontFamily: "var(--font-body)" }}
         >
-          TypeScript-first Fastify 5 framework. Phantom types enforce
-          compile-time feature safety. Builder pattern composes exactly what you
-          need.
+          The hard decisions are already made. PostgreSQL, Redis, queues, auth,
+          email — pre-chosen, pre-typed, pre-wired. Skip the configuration. Ship
+          the product.
         </p>
 
         {/* CTAs */}
@@ -72,12 +69,8 @@ export default function HomePage() {
             href="https://github.com/niranjan94/telaio"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-md px-5 py-2.5 text-sm font-medium transition-colors hover:border-[#c8a97e]"
-            style={{
-              border: "1px solid #1f1f23",
-              color: "#fafaf9",
-              fontFamily: "var(--font-body)",
-            }}
+            className="inline-flex items-center gap-2 rounded-md px-5 py-2.5 text-sm font-medium transition-colors hover:border-[#c8a97e] border border-border text-foreground"
+            style={{ fontFamily: "var(--font-body)" }}
           >
             <ExternalLink size={15} />
             View on GitHub
@@ -85,31 +78,16 @@ export default function HomePage() {
         </div>
 
         {/* Code snippet */}
-        <div
-          className="animate-fade-up animation-delay-400 relative mt-12 w-full max-w-lg overflow-hidden rounded-lg text-left"
-          style={{ background: "#0f0f12", border: "1px solid #1f1f23" }}
-        >
+        <div className="animate-fade-up animation-delay-400 relative mt-12 w-full max-w-lg overflow-hidden rounded-lg text-left bg-muted border border-border">
           {/* Dot bar */}
-          <div
-            className="flex items-center gap-1.5 px-4 py-3"
-            style={{ borderBottom: "1px solid #1f1f23" }}
-          >
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ background: "#3f3f46" }}
-            />
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ background: "#3f3f46" }}
-            />
-            <span
-              className="h-2.5 w-2.5 rounded-full"
-              style={{ background: "#3f3f46" }}
-            />
+          <div className="flex items-center gap-1.5 px-4 py-3 border-b border-border">
+            <span className="h-2.5 w-2.5 rounded-full bg-border" />
+            <span className="h-2.5 w-2.5 rounded-full bg-border" />
+            <span className="h-2.5 w-2.5 rounded-full bg-border" />
           </div>
           <pre
-            className="overflow-x-auto p-5 text-[13px] leading-relaxed"
-            style={{ fontFamily: "var(--font-mono)", color: "#a1a1aa" }}
+            className="overflow-x-auto p-5 text-[13px] leading-relaxed text-muted-foreground"
+            style={{ fontFamily: "var(--font-mono)" }}
           >
             <code>
               <span style={{ color: "#78716c" }}>{"// app.ts\n"}</span>
@@ -129,10 +107,10 @@ export default function HomePage() {
               <span style={{ color: "#c8a97e" }}>{"build"}</span>
               <span style={{ color: "#a1a1aa" }}>{"()\n\n"}</span>
               <span style={{ color: "#78716c" }}>
-                {"// TS Error: Property 'cache' does not exist\n"}
+                {"// Database, cache, queues — wired.\n"}
               </span>
               <span style={{ color: "#78716c" }}>
-                {"// — if .withCache() was never called"}
+                {"// No decisions. Just build."}
               </span>
             </code>
           </pre>
@@ -141,7 +119,7 @@ export default function HomePage() {
 
       {/* Divider */}
       <div className="mx-auto max-w-5xl px-6">
-        <div style={{ height: "1px", background: "#1f1f23" }} />
+        <hr className="border-border" />
       </div>
 
       {/* Three Pillars */}
@@ -154,9 +132,8 @@ export default function HomePage() {
           >
             Feature flags live in the type system. If{" "}
             <code
-              className="rounded px-1 text-xs"
+              className="rounded px-1 text-xs bg-muted"
               style={{
-                background: "#1f1f23",
                 color: "#c8a97e",
                 fontFamily: "var(--font-mono)",
               }}
@@ -165,9 +142,8 @@ export default function HomePage() {
             </code>{" "}
             was never called,{" "}
             <code
-              className="rounded px-1 text-xs"
+              className="rounded px-1 text-xs bg-muted"
               style={{
-                background: "#1f1f23",
                 color: "#c8a97e",
                 fontFamily: "var(--font-mono)",
               }}
@@ -184,9 +160,8 @@ export default function HomePage() {
           >
             Compose exactly the features you need. Every{" "}
             <code
-              className="rounded px-1 text-xs"
+              className="rounded px-1 text-xs bg-muted"
               style={{
-                background: "#1f1f23",
                 color: "#c8a97e",
                 fontFamily: "var(--font-mono)",
               }}
@@ -211,20 +186,20 @@ export default function HomePage() {
 
       {/* Divider */}
       <div className="mx-auto max-w-5xl px-6">
-        <div style={{ height: "1px", background: "#1f1f23" }} />
+        <hr className="border-border" />
       </div>
 
       {/* The Stack */}
       <section className="mx-auto max-w-5xl px-6 py-24 text-center">
         <h2
-          className="animate-fade-up mb-3 text-3xl font-semibold tracking-tight"
-          style={{ fontFamily: "var(--font-display)", color: "#fafaf9" }}
+          className="animate-fade-up mb-3 text-3xl font-semibold tracking-tight text-foreground"
+          style={{ fontFamily: "var(--font-display)" }}
         >
           One stack. <span style={{ color: "#c8a97e" }}>Zero compromises.</span>
         </h2>
         <p
-          className="animate-fade-up animation-delay-100 mb-12 text-sm"
-          style={{ color: "#78716c", fontFamily: "var(--font-body)" }}
+          className="animate-fade-up animation-delay-100 mb-12 text-sm text-muted-foreground/60"
+          style={{ fontFamily: "var(--font-body)" }}
         >
           Every pairing is pre-typed, pre-wired, and battle-tested.
         </p>
@@ -246,13 +221,8 @@ export default function HomePage() {
           ].map((tech) => (
             <span
               key={tech}
-              className="rounded-full px-3.5 py-1.5 text-xs font-medium"
-              style={{
-                background: "#111113",
-                border: "1px solid #1f1f23",
-                color: "#a1a1aa",
-                fontFamily: "var(--font-body)",
-              }}
+              className="rounded-full px-3.5 py-1.5 text-xs font-medium bg-card border border-border text-muted-foreground"
+              style={{ fontFamily: "var(--font-body)" }}
             >
               {tech}
             </span>
@@ -262,7 +232,7 @@ export default function HomePage() {
 
       {/* Divider */}
       <div className="mx-auto max-w-5xl px-6">
-        <div style={{ height: "1px", background: "#1f1f23" }} />
+        <hr className="border-border" />
       </div>
 
       {/* Quick Start */}
@@ -270,28 +240,22 @@ export default function HomePage() {
         <div className="flex items-center gap-3 mb-3">
           <Wrench size={18} style={{ color: "#c8a97e" }} />
           <h2
-            className="animate-fade-up text-3xl font-semibold tracking-tight"
-            style={{ fontFamily: "var(--font-display)", color: "#fafaf9" }}
+            className="animate-fade-up text-3xl font-semibold tracking-tight text-foreground"
+            style={{ fontFamily: "var(--font-display)" }}
           >
             Quick Start
           </h2>
         </div>
         <p
-          className="animate-fade-up animation-delay-100 mb-8 text-sm"
-          style={{ color: "#78716c", fontFamily: "var(--font-body)" }}
+          className="animate-fade-up animation-delay-100 mb-8 text-sm text-muted-foreground/60"
+          style={{ fontFamily: "var(--font-body)" }}
         >
           Up and running in under a minute.
         </p>
 
-        <div
-          className="animate-fade-up animation-delay-200 overflow-hidden rounded-lg"
-          style={{ background: "#0f0f12", border: "1px solid #1f1f23" }}
-        >
+        <div className="animate-fade-up animation-delay-200 overflow-hidden rounded-lg bg-muted border border-border">
           {/* Tab bar */}
-          <div
-            className="flex items-center gap-0"
-            style={{ borderBottom: "1px solid #1f1f23" }}
-          >
+          <div className="flex items-center gap-0 border-b border-border">
             <div
               className="px-4 py-3 text-xs font-medium"
               style={{
@@ -304,8 +268,8 @@ export default function HomePage() {
             </div>
           </div>
           <pre
-            className="overflow-x-auto p-5 text-[13px] leading-relaxed"
-            style={{ fontFamily: "var(--font-mono)", color: "#a1a1aa" }}
+            className="overflow-x-auto p-5 text-[13px] leading-relaxed text-muted-foreground"
+            style={{ fontFamily: "var(--font-mono)" }}
           >
             <code>
               <span style={{ color: "#78716c" }}>
@@ -336,20 +300,19 @@ export default function HomePage() {
 
       {/* Divider */}
       <div className="mx-auto max-w-5xl px-6">
-        <div style={{ height: "1px", background: "#1f1f23" }} />
+        <hr className="border-border" />
       </div>
 
       {/* Footer strip */}
       <footer className="mx-auto max-w-5xl px-6 py-12 text-center">
         <p
-          className="text-sm"
-          style={{ color: "#78716c", fontFamily: "var(--font-body)" }}
+          className="text-sm text-muted-foreground/60"
+          style={{ fontFamily: "var(--font-body)" }}
         >
           Telaio — named after the loom. Type every thread.{"  "}
           <Link
             href="/docs"
-            className="underline underline-offset-2 transition-colors hover:opacity-80"
-            style={{ color: "#a1a1aa" }}
+            className="underline underline-offset-2 transition-colors hover:opacity-80 text-muted-foreground"
           >
             Docs
           </Link>
@@ -358,8 +321,7 @@ export default function HomePage() {
             href="https://github.com/niranjan94/telaio"
             target="_blank"
             rel="noopener noreferrer"
-            className="underline underline-offset-2 transition-colors hover:opacity-80"
-            style={{ color: "#a1a1aa" }}
+            className="underline underline-offset-2 transition-colors hover:opacity-80 text-muted-foreground"
           >
             GitHub
           </a>
@@ -382,24 +344,20 @@ function PillarCard({
 }) {
   return (
     <div
-      className={`animate-fade-up ${delay} rounded-lg p-6`}
-      style={{ background: "#111113", border: "1px solid #1f1f23" }}
+      className={`animate-fade-up ${delay} rounded-lg p-6 bg-card border border-border`}
     >
-      <div
-        className="mb-4 flex h-8 w-8 items-center justify-center rounded-md"
-        style={{ background: "#1f1f23" }}
-      >
+      <div className="mb-4 flex h-8 w-8 items-center justify-center rounded-md bg-muted">
         {icon}
       </div>
       <h3
-        className="mb-2 text-base font-semibold"
-        style={{ color: "#fafaf9", fontFamily: "var(--font-display)" }}
+        className="mb-2 text-base font-semibold text-foreground"
+        style={{ fontFamily: "var(--font-display)" }}
       >
         {heading}
       </h3>
       <p
-        className="text-sm leading-relaxed"
-        style={{ color: "#a1a1aa", fontFamily: "var(--font-body)" }}
+        className="text-sm leading-relaxed text-muted-foreground"
+        style={{ fontFamily: "var(--font-body)" }}
       >
         {children}
       </p>
