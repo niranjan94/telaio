@@ -119,4 +119,16 @@ export class LiveConfigService<
 
     await this._cache.setRecord(this._cacheKey(module), config, this._ttl);
   }
+
+  /**
+   * Deletes a module's config from both the database and cache.
+   */
+  async delete<K extends string & keyof TModules>(module: K): Promise<void> {
+    await this._db
+      .deleteFrom('liveConfigs')
+      .where('module', '=', module)
+      .execute();
+
+    await this._cache.delete(this._cacheKey(module));
+  }
 }

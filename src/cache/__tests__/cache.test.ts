@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createLogger } from '../../logger/index.js';
 import { Cache, createCache } from '../index.js';
+import { LiveConfigService } from '../live-config.js';
 
 const logger = createLogger({ level: 'silent', pretty: false });
 
@@ -41,6 +42,40 @@ describe('Cache', () => {
   it('close is a no-op when disabled', async () => {
     const cache = new Cache({ enabled: false, logger });
     await cache.close();
+  });
+});
+
+describe('LiveConfigService', () => {
+  function makeDb(overrides: Record<string, unknown> = {}) {
+    const execute = vi.fn().mockResolvedValue(undefined);
+    const where = vi.fn().mockReturnValue({ execute });
+    const deleteFrom = vi.fn().mockReturnValue({ where });
+    return { deleteFrom, where, execute, ...overrides };
+  }
+
+  it('delete removes from db and cache', async () => {
+    const db = makeDb();
+    const cache = new Cache({ enabled: false });
+    const deleteSpy = vi.spyOn(cache, 'delete');
+
+    const svc = new LiveConfigService({ db, cache });
+    await svc.delete('my-module');
+
+    expect(db.deleteFrom).toHaveBeenCalledWith('liveConfigs');
+    expect(db.where).toHaveBeenCalledWith('module', '=', 'my-module');
+    expect(db.execute).toHaveBeenCalled();
+    expect(deleteSpy).toHaveBeenCalledWith('live-config::my-module');
+  });
+
+  it('delete uses keyPrefix in cache key', async () => {
+    const db = makeDb();
+    const cache = new Cache({ enabled: false });
+    const deleteSpy = vi.spyOn(cache, 'delete');
+
+    const svc = new LiveConfigService({ db, cache, keyPrefix: 'cfg' });
+    await svc.delete('flags');
+
+    expect(deleteSpy).toHaveBeenCalledWith('cfg::flags');
   });
 });
 
