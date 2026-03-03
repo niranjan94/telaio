@@ -5,7 +5,7 @@ description: Redis-backed cache with graceful degradation, stale-while-revalidat
 
 # Caching
 
-Telaio's cache module wraps [ioredis](https://github.com/redis/ioredis) with two important properties: it degrades silently when Redis is unavailable, and it provides a typed record API so you do not have to manually serialize/deserialize JSON.
+Telaio's cache module wraps [redis (node-redis)](https://github.com/redis/node-redis) with two important properties: it degrades silently when Redis is unavailable, and it provides a typed record API so you do not have to manually serialize/deserialize JSON.
 
 ## Graceful degradation
 
@@ -64,14 +64,14 @@ All methods return `null` or do nothing silently when Redis is disabled or unrea
 
 ## Raw Redis client
 
-If you need operations not covered by the typed API (pipelines, pub/sub, Lua scripts), access the underlying ioredis client directly:
+If you need operations not covered by the typed API (pipelines, pub/sub, Lua scripts), access the underlying node-redis client pool directly:
 
 ```typescript
 const cache = createCache(config);
 
 if (cache.redis) {
-  await cache.redis.zadd('leaderboard', score, userId);
-  const top10 = await cache.redis.zrevrange('leaderboard', 0, 9);
+  await cache.redis.zAdd('leaderboard', { score, value: userId });
+  const top10 = await cache.redis.zRange('leaderboard', 0, 9, { REV: true });
 }
 ```
 

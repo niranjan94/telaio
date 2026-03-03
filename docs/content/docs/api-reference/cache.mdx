@@ -24,7 +24,7 @@ function createCache(
 
 Creates a `Cache` instance. Accepts either explicit `CacheOptions` or a loaded config record. When passed a config record it reads `REDIS_ENABLED` and `REDIS_URL` automatically.
 
-If `enabled` is `false` (or `REDIS_ENABLED=false` in config), returns a no-op stub. All methods return `null` or resolve immediately without connecting to Redis. No `ioredis` peer dependency is loaded.
+If `enabled` is `false` (or `REDIS_ENABLED=false` in config), returns a no-op stub. All methods return `null` or resolve immediately without connecting to Redis. No `redis` peer dependency is loaded.
 
 ```typescript
 // From explicit options
@@ -55,11 +55,11 @@ interface CacheOptions {
 
 ## Cache
 
-The `Cache` class wraps an `ioredis` client and provides a consistent interface for string and JSON operations. It requires `ioredis` as a peer dependency.
+The `Cache` class wraps a `redis` (node-redis) client pool and provides a consistent interface for string and JSON operations. It requires `redis` as a peer dependency.
 
 ```typescript
 class Cache {
-  redis: ioredis.Redis | null;
+  redis: RedisClientPool | null;
 
   async get(key: string): Promise<string | null>
   async set(key: string, value: string, ttl?: number): Promise<void>
@@ -74,7 +74,7 @@ class Cache {
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `redis` | `ioredis.Redis \| null` | The underlying ioredis client. `null` when cache is disabled. |
+| `redis` | `RedisClientPool \| null` | The underlying node-redis client pool. `null` when cache is disabled. |
 
 ### Methods
 

@@ -16,8 +16,12 @@ TypeScript-first Fastify 5 framework with a builder pattern and phantom types fo
 | `pnpm run test:types` | Compile-time type tests |
 | `pnpm run test:e2e` | E2E with testcontainers — requires Docker |
 | `pnpm run test:all` | All four suites sequentially |
+| `pnpm run --filter telaio dev` | Docs dev server (Next.js) |
+| `pnpm run --filter telaio build` | Build docs for production |
 
 **Quality gate after every change:** `pnpm run format && pnpm run build && pnpm run test && pnpm run test:integration`
+
+**Docs requirement:** Every API, feature, or behaviour change must include corresponding documentation updates in `docs/content/docs/`. The docs app is the primary reference for users.
 
 ## Architecture
 
@@ -40,6 +44,16 @@ src/
   server/             # Fastify plugins, hooks, Swagger, Scalar
   cli/                # CLI commands: init, migrate, build, dev, gen-client, db:types
   errors/             # Typed HTTP errors (RequestError subclasses)
+
+docs/                 # Fumadocs UI (Next.js) — public documentation site
+  content/docs/
+    introduction/     # Getting started guides
+    core-concepts/    # Builder, phantom types, config
+    modules/          # Per-feature module docs (db, cache, queue, auth, email, s3)
+    server/           # Fastify server setup
+    cli/              # CLI command reference
+    api-reference/    # Generated/manual API docs
+  source.config.ts    # Fumadocs content source config
 ```
 
 ## Code Style
