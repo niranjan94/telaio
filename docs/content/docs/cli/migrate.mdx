@@ -86,15 +86,13 @@ The default directory is resolved from your project root.
 If you need to run migrations inside application code rather than from the CLI:
 
 ```typescript
-import { createMigrator, migrateToLatest, runFrameworkMigrations } from 'telaio/db/migrations';
+import { migrateToLatest } from 'telaio/db/migrations';
 
-// Always run framework migrations first
-await runFrameworkMigrations(db);
-
-// Then run your app migrations
-await migrateToLatest(db, 'src/db/migrations');
+await migrateToLatest({
+  db,
+  migrationsDir: 'src/db/migrations',
+});
+// Returns { framework: MigrationResult[], user: MigrationResult[] }
 ```
 
-<Callout type="warn">
-Always run `runFrameworkMigrations` before `migrateToLatest`. Framework migrations set up internal Telaio tables (such as the queue schema) that your app migrations may depend on.
-</Callout>
+`migrateToLatest` runs framework migrations first, then your app migrations — in the correct order automatically. You do not need to call `runFrameworkMigrations` separately.

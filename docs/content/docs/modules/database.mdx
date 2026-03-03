@@ -115,14 +115,14 @@ import {
 
 | Function | Description |
 |----------|-------------|
-| `createMigrator(db, dir)` | Creates a Kysely `Migrator` pointed at your migrations directory |
-| `createMigrationFile(dir, name)` | Scaffolds a new timestamped migration file |
-| `migrateToLatest(db, dir)` | Runs all pending app migrations |
-| `runFrameworkMigrations(db)` | Runs Telaio's own internal migrations |
+| `createMigrator(options)` | Creates a Kysely `Migrator` pointed at your migrations directory (`options.migrationsDir`) |
+| `createMigrationFile(name, dir)` | Scaffolds a new timestamped migration file (note: `name` first, `dir` second) |
+| `migrateToLatest(options)` | Runs all pending app migrations (runs framework migrations first internally) |
+| `runFrameworkMigrations(db)` | Runs Telaio's own internal migrations — called automatically by `migrateToLatest` |
 
 Telaio stores its internal migration state in `_telaio_migrations`. Your app migrations use a separate table (Kysely defaults to `kysely_migration`). The two tables never conflict.
 
-The `telaio migrate` CLI command wraps both `runFrameworkMigrations` and `migrateToLatest` in the correct order.
+`migrateToLatest` runs framework migrations first automatically — you do not need to call `runFrameworkMigrations` before it.
 
 ## Dynamic filters (applyFilter)
 
@@ -179,18 +179,22 @@ applyFilter(q, {
 
 ## Sort and pagination helpers
 
-Import `sortPaginateQuery` from `telaio/db/query-builders` to apply cursor or offset pagination and multi-column sorting to any `SelectQueryBuilder`:
+Import `sortPaginateQuery` from `telaio/db/query-builders`:
 
 ```typescript
 import { sortPaginateQuery } from 'telaio/db/query-builders';
 
-const page = await sortPaginateQuery(
+const result = await sortPaginateQuery(
   db.selectFrom('users').selectAll(),
   {
-    sort: [{ column: 'createdAt', direction: 'desc' }],
+    sort: '-createdAt,name',    // createdAt DESC, name ASC
     limit: 20,
-    offset: 0,
+    skip: 0,
+    sortableColumns: ['createdAt', 'name'],
   },
-  ['createdAt', 'name'],  // sortable columns allowlist
-).execute();
+);
+// result.data → User[]
+// result.meta → { total, skip, limit }
 ```
+
+The function executes the data query and count query concurrently. All conditions must be applied to `query` before calling `sortPaginateQuery`.

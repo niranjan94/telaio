@@ -144,21 +144,34 @@ import {
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `createMigrator` | `(db: Kysely<any>, options?) => Migrator` | Creates a Kysely `Migrator` pointing at your migrations directory |
-| `createMigrationFile` | `(name: string, dir?: string) => Promise<string>` | Scaffolds a timestamped migration file. Returns the created file path. |
-| `migrateToLatest` | `(db: Kysely<any>) => Promise<void>` | Runs all pending app migrations |
-| `runFrameworkMigrations` | `(db: Kysely<any>) => Promise<void>` | Runs Telaio's own internal migrations |
-
-Telaio stores its internal migration state in `_telaio_migrations`. App migrations use Kysely's default `kysely_migration` table. The two never conflict.
-
-Always run `runFrameworkMigrations` before `migrateToLatest`:
+| `createMigrator` | `(options: MigratorOptions) => Migrator` | Creates a Kysely `Migrator` pointing at your migrations directory |
+| `createMigrationFile` | `(name: string, dir: string) => Promise<string>` | Scaffolds a timestamped migration file. Returns the created filename. |
+| `migrateToLatest` | `(options: MigratorOptions) => Promise<{ framework: MigrationResult[]; user: MigrationResult[] }>` | Runs framework migrations then all pending app migrations |
+| `runFrameworkMigrations` | `(db: Kysely<any>, logger?) => Promise<MigrationResult[]>` | Runs Telaio's own internal migrations only |
 
 ```typescript
-await runFrameworkMigrations(db);
-await migrateToLatest(db);
+interface MigratorOptions {
+  db: Kysely<any>;
+  migrationsDir: string;
+  logger?: Logger;
+}
 ```
 
-The `telaio migrate` CLI command wraps both in the correct order.
+`migrateToLatest` runs framework migrations first automatically — you do not need to call `runFrameworkMigrations` separately.
+
+```typescript
+// Correct usage:
+await migrateToLatest({
+  db,
+  migrationsDir: 'src/db/migrations',
+});
+
+// The above is equivalent to:
+// await runFrameworkMigrations(db);  ← done internally
+// await userMigrator.migrateToLatest();
+```
+
+Telaio stores its internal migration state in `_telaio_migrations`. App migrations use Kysely's default `kysely_migration` table. The two never conflict.
 
 ---
 
@@ -241,33 +254,65 @@ applyFilter(
 ## sortPaginateQuery()
 
 ```typescript
-function sortPaginateQuery<DB, TB, O>(
+async function sortPaginateQuery<DB, TB, O>(
   query: SelectQueryBuilder<DB, TB, O>,
-  params: SortPaginateParams,
-  sortableColumns: readonly ReferenceExpression<DB, TB>[],
-): SelectQueryBuilder<DB, TB, O>
+  options?: SortPaginationOptions,
+): Promise<{ data: O[]; meta: PaginationMeta }>
 ```
 
-Applies sort and pagination clauses to a `SelectQueryBuilder`. The `sortableColumns` argument is an allowlist; any `sort.column` value not in this list is ignored.
+Executes a query with sort, pagination, and total count concurrently. Returns both data rows and pagination metadata. The query and its count are run in parallel via `Promise.all`.
 
 ```typescript
 import { sortPaginateQuery } from 'telaio/db/query-builders';
 
-const page = await sortPaginateQuery(
+const result = await sortPaginateQuery(
   db.selectFrom('users').selectAll(),
   {
-    sort: [{ column: 'createdAt', direction: 'desc' }],
+    sort: '-createdAt,name',       // createdAt DESC, name ASC
     limit: 20,
-    offset: 0,
+    skip: 0,
+    sortableColumns: ['createdAt', 'name'],
   },
-  ['createdAt', 'name'],
-).execute();
+);
+// result.data   → User[]
+// result.meta   → { total: number, skip: number, limit: number }
 ```
 
-### SortPaginateParams
+### SortPaginationOptions
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `sort` | `Array<{ column: string; direction: 'asc' \| 'desc' }>` | Sort columns in priority order |
-| `limit` | `number` | Maximum rows to return |
-| `offset` | `number` | Number of rows to skip |
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `sort` | `string` | — | Comma-separated sort fields. Prefix `-` for descending. E.g. `-createdAt,name` |
+| `limit` | `number \| string` | `20` | Rows per page. Clamped to 1–100. |
+| `skip` | `number \| string` | `0` | Number of rows to skip. |
+| `sortableColumns` | `readonly string[]` | — | Allowlist of valid sort fields. Sorts on unlisted columns throw `BadRequestError`. |
+
+Sort string format: `-createdAt,name` means `ORDER BY createdAt DESC, name ASC`. If no `sort` is provided and `createdAt` is in `sortableColumns`, defaults to `createdAt DESC`.
+
+### PaginationMeta
+
+```typescript
+interface PaginationMeta {
+  total: number;   // total row count (ignoring limit/skip)
+  skip: number;    // actual skip applied
+  limit: number;   // actual limit applied
+}
+```
+
+### Usage with route params
+
+The built-in `SortPaginationParamsSchema` produces query params matching this interface:
+
+```typescript
+fastify.get('/users', {
+  schema: {
+    querystring: AutoRef(SortPaginationParamsSchema),
+    response: { 200: Paginated(UserSchema) },
+  },
+}, async (req) => {
+  return sortPaginateQuery(
+    db.selectFrom('users').selectAll(),
+    { ...req.query, sortableColumns: ['createdAt', 'name', 'email'] },
+  );
+});
+```
