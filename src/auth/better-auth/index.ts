@@ -22,12 +22,20 @@ export {
   type EmailCallbackOptions,
   type EmailSender,
   type EmailTemplateVars,
+  type SESEmailSenderOptions,
+  createSESEmailSender,
   emailVerificationCallbacks,
   magicLinkCallbacks,
   renderBaseLayout,
   renderEmailVerification,
   renderMagicLink,
 } from './emails.js';
+
+// React Email renderers (opt-in, requires @daveyplate/better-auth-ui + @react-email/components)
+export {
+  renderEmailVerificationReact,
+  renderMagicLinkReact,
+} from './emails-react.js';
 // Types
 export type {
   BetterAuthOrgSession,
