@@ -1,0 +1,90 @@
+---
+title: telaio init
+description: Scaffold a new Telaio project with sensible defaults and the full directory structure.
+---
+
+# telaio init
+
+```bash
+pnpx telaio init [dir]
+```
+
+Scaffolds a new Telaio project. If `dir` is omitted, the current directory is used.
+
+## What it creates
+
+```
+my-app/
+  package.json
+  tsconfig.json
+  telaio.config.ts
+  biome.json
+  src/
+    app.ts                    # createApp() wiring
+    server.ts                 # entry point
+    config.ts                 # loadConfig() call
+    schemas/                  # TypeBox schema directory
+    routes/                   # Route autoload root
+      index.ts
+    db/
+      migrations/             # Migration files live here
+```
+
+The scaffolded `app.ts` is a minimal wiring example. The `telaio.config.ts` has placeholders for every top-level option. Both files are meant to be edited -- they are not generated code that you feed back into a tool.
+
+## Idempotent
+
+`telaio init` is safe to run in an existing directory. It will not overwrite files that already exist. This makes it useful for adding the standard structure to an existing project without risk:
+
+```bash
+cd existing-project
+pnpx telaio init
+# Only creates files that don't already exist
+```
+
+## Generated package.json
+
+The scaffolded `package.json` includes:
+
+- `"type": "module"` (ESM-only)
+- `telaio` as a dependency
+- Common peer dependencies as dev dependencies
+- `build`, `dev`, `start`, and `test` scripts
+
+## Generated telaio.config.ts
+
+```typescript
+import { defineConfig } from 'telaio';
+
+export default defineConfig({
+  app: 'src/app.ts',
+  modules: {
+    server: true,
+    database: true,
+  },
+});
+```
+
+## Generated src/app.ts
+
+```typescript
+import { loadConfig, createApp } from 'telaio';
+
+const config = loadConfig({
+  modules: { server: true, database: true },
+});
+
+export const app = await createApp({ config })
+  .withDatabase()
+  .withPlugins({
+    cors: true,
+    autoload: { dir: 'src/routes', routeParams: true, cascadeHooks: true },
+  })
+  .withSwagger({ info: { title: 'My API', version: '1.0.0' } })
+  .withApiDocs()
+  .build();
+```
+
+<Callout type="info">
+After running `telaio init`, install dependencies with `pnpm install` before starting development.
+</Callout>

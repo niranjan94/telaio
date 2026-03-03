@@ -1,0 +1,106 @@
+---
+title: Generate API Client
+description: Generate a fully typed TypeScript API client from your OpenAPI spec using telaio gen-client.
+---
+
+# Generate API Client
+
+```bash
+pnpx telaio gen-client
+```
+
+`telaio gen-client` generates a TypeScript API client from your app's OpenAPI spec. It spins up the app in ephemeral mode (no lifecycle hooks, no open ports), extracts the OpenAPI JSON, and passes it to `@hey-api/openapi-ts` for code generation.
+
+## Peer dependency
+
+```bash
+pnpm add -D @hey-api/openapi-ts
+```
+
+## Configuration
+
+Configure the client in `telaio.config.ts`:
+
+```typescript
+import { defineConfig } from 'telaio';
+
+export default defineConfig({
+  app: 'src/app.ts',  // required: path to your app builder module
+
+  client: {
+    output: 'client',   // output directory, relative to project root
+    enabled: true,      // set to false to disable generation
+    plugins: [
+      '@hey-api/sdk',
+      '@hey-api/typescript',
+      { name: '@hey-api/client-fetch', throwOnError: true },
+    ],
+  },
+});
+```
+
+### ClientConfig options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `output` | `string` | `'client'` | Output directory for generated files |
+| `enabled` | `boolean` | `true` | Set to `false` to skip generation (useful in CI) |
+| `plugins` | `array` | Default set | `@hey-api/openapi-ts` plugin list |
+
+### Default plugins
+
+When `plugins` is not specified, the following are used:
+
+- `@hey-api/typescript` -- TypeScript type definitions
+- `@hey-api/sdk` -- typed SDK functions
+- `@tanstack/react-query` -- React Query integration (if installed)
+
+## Ephemeral mode
+
+`gen-client` imports your `app` module and calls `.asEphemeral()` before `.build()`. This skips all `onReady` and `onClose` lifecycle hooks, meaning the server never binds to a port and background processes never start. The app is assembled purely to extract the OpenAPI spec.
+
+Your `app` module should export the builder result, not a started server:
+
+```typescript
+// src/app.ts — export the built app, not app.start()
+import { loadConfig, createApp } from 'telaio';
+
+const config = loadConfig({ modules: { server: true, database: true } });
+
+export const app = await createApp({ config })
+  .withDatabase()
+  .withSwagger({ info: { title: 'My API', version: '1.0.0' } })
+  .withApiDocs()
+  .withPlugins({ autoload: { dir: 'src/routes' } })
+  .build();
+```
+
+## Output
+
+The generated client is written to the configured `output` directory. If Biome is installed in the project, the output is automatically formatted after generation.
+
+```
+client/
+  index.ts
+  types.gen.ts
+  sdk.gen.ts
+  @tanstack/
+    react-query.gen.ts
+```
+
+## Using the generated client
+
+```typescript
+import { client, getUsers, getUserById } from '../client/index.js';
+
+// Configure the base URL once
+client.setConfig({ baseUrl: 'https://api.example.com' });
+
+// Use typed functions
+const users = await getUsers({ query: { limit: 20, skip: 0 } });
+const user = await getUserById({ path: { id: '123' } });
+```
+
+<Callout type="info">
+Run `telaio gen-client` as part of your CI pipeline to keep the client in sync with the API spec. Commit the generated output so consumers of the client do not need to run generation themselves.
+</Callout>

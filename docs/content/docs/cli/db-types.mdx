@@ -1,0 +1,111 @@
+---
+title: Generate Database Types
+description: Generate TypeScript types from your live database schema using telaio db:types.
+---
+
+# Generate Database Types
+
+```bash
+pnpx telaio db:types
+```
+
+`telaio db:types` generates TypeScript interfaces from your live PostgreSQL schema using [kysely-codegen](https://github.com/RobinBlomberg/kysely-codegen). The output is used as the `DB` generic for `createDatabase<DB>()`, which makes all Kysely queries fully typed against your actual schema.
+
+## Peer dependency
+
+```bash
+pnpm add -D kysely-codegen
+```
+
+## Default behavior
+
+`telaio db:types` runs `kysely-codegen` with the following flags applied by default:
+
+| Flag | Description |
+|------|-------------|
+| `--camel-case` | Converts `snake_case` column names to `camelCase` in the generated types, matching the Kysely `CamelCasePlugin` that Telaio enables by default |
+| `--runtime-enums` | Generates runtime enum objects in addition to TypeScript types |
+| `--singularize` | Converts plural table names to singular type names (e.g. `users` table becomes `User` type) |
+
+## Output
+
+Generated types are written to `src/db/types.ts`:
+
+```typescript
+// src/db/types.ts (generated — do not edit)
+export interface User {
+  id: string;
+  email: string;
+  name: string;
+  createdAt: Date;
+}
+
+export interface Post {
+  id: string;
+  userId: string;
+  title: string;
+  body: string;
+  publishedAt: Date | null;
+  createdAt: Date;
+}
+
+export interface DB {
+  users: User;
+  posts: Post;
+}
+```
+
+## Using the generated types
+
+Pass the `DB` interface as the generic to `createDatabase`:
+
+```typescript
+import type { DB } from './db/types.js';
+import { createPool, createDatabase } from 'telaio/db';
+
+const pool = await createPool(config);
+const db = await createDatabase<DB>(pool);
+
+// All queries are now typed against your actual schema:
+const user = await db
+  .selectFrom('users')
+  .where('id', '=', userId)
+  .selectAll()
+  .executeTakeFirstOrThrow();
+
+// user.email is typed as string
+// user.createdAt is typed as Date
+```
+
+When using the builder, cast `app.db` to the typed version:
+
+```typescript
+import type { DB } from './db/types.js';
+import type { Kysely } from 'kysely';
+
+const app = await createApp({ config }).withDatabase().build();
+
+const db = app.db as Kysely<DB>;
+```
+
+## Connection
+
+`telaio db:types` reads `DATABASE_URL` from the environment (or your `.env` file) to connect to the database and introspect the schema. The database must be running and accessible when you run the command.
+
+```bash
+DATABASE_URL=postgres://user:pass@localhost:5432/mydb pnpx telaio db:types
+```
+
+Or set it in `.env`:
+
+```bash
+DATABASE_URL=postgres://user:pass@localhost:5432/mydb
+```
+
+<Callout type="info">
+Re-run `telaio db:types` after every migration that changes the schema. Keeping the generated types in sync with the database schema ensures that TypeScript catches column renames, type changes, and dropped columns at compile time.
+</Callout>
+
+<Callout type="warn">
+The generated `src/db/types.ts` file is overwritten on every run. Do not add manual changes to this file -- put custom type augmentations in a separate file and import from there.
+</Callout>

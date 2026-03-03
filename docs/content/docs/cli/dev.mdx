@@ -1,0 +1,91 @@
+---
+title: Development Server
+description: Process orchestration, file watching, and multi-process dev mode via telaio dev.
+---
+
+# Development Server
+
+```bash
+pnpx telaio dev
+```
+
+`telaio dev` starts the application in development mode. It orchestrates multiple processes, watches the filesystem for changes, and restarts processes when relevant files are modified.
+
+## Peer dependencies
+
+`telaio dev` requires two peer dependencies:
+
+```bash
+pnpm add -D concurrently @parcel/watcher
+```
+
+`concurrently` manages multiple child processes with labeled output. `@parcel/watcher` provides native filesystem watching with low overhead.
+
+## Configuration
+
+Configure `dev` in your `telaio.config.ts`:
+
+```typescript
+import { defineConfig } from 'telaio';
+
+export default defineConfig({
+  dev: {
+    processes: [
+      { name: 'worker', command: 'node src/worker.ts', prefixColor: 'cyan' },
+      { name: 'scheduler', command: 'node src/scheduler.ts', prefixColor: 'yellow' },
+    ],
+    watch: {
+      include: ['config/**', '.env'],
+      ignore: ['*.test.ts', 'dist/**'],
+      debounceMs: 500,
+    },
+    output: 'dev.log',
+  },
+});
+```
+
+### ProcessConfig
+
+Each entry in `processes` describes an additional process to run alongside the main server.
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `name` | `string` | Label shown in the combined output |
+| `command` | `string` | Shell command to run |
+| `prefixColor` | `string` | Color for the process label in terminal output |
+
+### WatchConfig
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `include` | `string[]` | Additional glob patterns to watch beyond the defaults |
+| `ignore` | `string[]` | Glob patterns to exclude from watching |
+| `debounceMs` | `number` | Milliseconds to wait after a change before restarting. Default: `300` |
+
+### output
+
+When `output` is set to a file path, the combined log output from all processes is written to that file in addition to stdout. Useful for capturing dev session logs.
+
+## What gets watched
+
+By default, `telaio dev` watches:
+
+- `src/**`
+- `telaio.config.ts`
+- `.env` and `.env.*`
+
+Paths in `watch.include` are added to this set. Paths in `watch.ignore` are excluded.
+
+## Process lifecycle
+
+On startup, all configured processes are launched in parallel. When a watched file changes:
+
+1. All child processes receive `SIGTERM`
+2. After a short drain period, they are killed if still running
+3. All processes restart with the same command
+
+The main Telaio server is always included as one of the managed processes. Additional entries in `processes` are extra workers, queue consumers, or any other long-running Node process your app needs.
+
+<Callout type="info">
+For the queue consumer specifically, prefer using `telaio consumer` in a separate terminal or Docker container rather than adding it to `dev.processes`. This keeps the consumer lifecycle independent and matches how you would run it in production.
+</Callout>

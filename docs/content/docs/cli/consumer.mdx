@@ -1,0 +1,98 @@
+---
+title: Queue Consumer
+description: Start the pg-boss queue consumer process with automatic registry discovery.
+---
+
+# Queue Consumer
+
+```bash
+pnpx telaio consumer
+```
+
+`telaio consumer` starts the queue consumer process. It loads your job handler registry, connects to pg-boss, and begins processing queued jobs.
+
+## Registry discovery
+
+The consumer discovers your handler registry in one of two ways:
+
+1. The `consumer.registry` path in `telaio.config.ts`
+2. The `--registry` CLI flag
+
+The default path if neither is configured is `src/queues/registry/index.ts`.
+
+```typescript
+// telaio.config.ts
+import { defineConfig } from 'telaio';
+
+export default defineConfig({
+  consumer: {
+    registry: 'src/queues/registry/index.ts',
+  },
+});
+```
+
+```bash
+# Override the registry path at the command line
+pnpx telaio consumer --registry src/workers/index.ts
+```
+
+## Registry module shape
+
+The registry module must export either a default export or a named `registry` export. The value must be a `Record<string, QueueJobHandler>`:
+
+```typescript
+// src/queues/registry/index.ts
+import type { QueueJobHandler } from 'telaio/queue';
+import { sendWelcomeEmailHandler } from './send-welcome-email.js';
+import { generateReportHandler } from './generate-report.js';
+import { processUploadHandler } from './process-upload.js';
+
+export const registry = {
+  'email.welcome': sendWelcomeEmailHandler,
+  'report.generate': generateReportHandler,
+  'upload.process': processUploadHandler,
+} satisfies Record<string, QueueJobHandler>;
+```
+
+Using `satisfies Record<string, QueueJobHandler>` lets TypeScript infer the exact queue names from the object keys while still checking that each handler conforms to the `QueueJobHandler` interface.
+
+## Handler shape
+
+Each handler receives the job data and a context object:
+
+```typescript
+import type { QueueJobHandler } from 'telaio/queue';
+
+export const sendWelcomeEmailHandler: QueueJobHandler<{ userId: string }> = async (job) => {
+  const { userId } = job.data;
+  // process the job...
+};
+```
+
+## Production deployment
+
+In production, run the consumer as a separate process from the web server. This gives you independent scaling and ensures that a crash in a job handler does not affect request handling.
+
+```dockerfile
+# Dockerfile (consumer service)
+CMD ["node", "--import", "tsx/esm", "node_modules/.bin/telaio", "consumer"]
+```
+
+Or in a `docker-compose.yml`:
+
+```yaml
+services:
+  api:
+    command: node --import tsx/esm src/server.ts
+
+  consumer:
+    command: pnpx telaio consumer
+```
+
+<Callout type="warn">
+The consumer process must have access to the same `DATABASE_URL` as the web server. pg-boss uses the database as its queue backend and requires a live connection to process jobs.
+</Callout>
+
+## Graceful shutdown
+
+`telaio consumer` listens for `SIGTERM` and `SIGINT`. On receipt, it stops accepting new jobs, waits for in-flight jobs to complete, and then exits cleanly. This ensures that jobs are not abandoned mid-execution during deployments or container shutdowns.

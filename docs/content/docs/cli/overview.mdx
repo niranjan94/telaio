@@ -1,0 +1,83 @@
+---
+title: CLI Overview
+description: All telaio CLI commands, config discovery, and how to invoke the binary.
+---
+
+# CLI Overview
+
+Telaio ships a `telaio` binary. Run it with `pnpx` from your project root:
+
+```bash
+pnpx telaio <command>
+```
+
+## Config discovery
+
+The CLI looks for `telaio.config.ts` in your project root. This file exports a `defineConfig` call that controls CLI behavior, code generation settings, the dev process orchestration, and the queue consumer registry.
+
+```typescript
+// telaio.config.ts
+import { defineConfig } from 'telaio';
+
+export default defineConfig({
+  app: 'src/app.ts',
+  modules: {
+    server: true,
+    database: true,
+    cache: true,
+  },
+});
+```
+
+This mirrors how Vite and Vitest discover config files -- the CLI resolves the file relative to `process.cwd()`.
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `telaio init [dir]` | Scaffold a new Telaio project in the given directory |
+| `telaio migrate create <name>` | Create a new timestamped migration file |
+| `telaio migrate latest` | Run all pending migrations |
+| `telaio migrate up` | Run the next pending migration only |
+| `telaio migrate down` | Roll back the most recent migration |
+| `telaio migrate status` | Show which migrations have run and which are pending |
+| `telaio dev` | Start the development server with process orchestration and file watching |
+| `telaio consumer` | Start the queue consumer process |
+| `telaio gen-client` | Generate a TypeScript API client from the OpenAPI spec |
+| `telaio db:types` | Generate TypeScript types from your database schema |
+
+## telaio.config.ts options
+
+```typescript
+import { defineConfig } from 'telaio';
+
+export default defineConfig({
+  // Path to the app builder module (used by gen-client and consumer)
+  app: 'src/app.ts',
+
+  // Zod modules for config schema composition
+  modules: { server: true, database: true, cache: true, queue: true },
+
+  // Custom Zod schema to extend the base config
+  extend: z.object({ MY_VAR: z.string() }),
+
+  // API client generation options
+  client: {
+    output: 'client',
+    enabled: true,
+    plugins: ['@hey-api/typescript'],
+  },
+
+  // Queue consumer options
+  consumer: {
+    registry: 'src/queues/registry/index.ts',
+  },
+
+  // Dev process orchestration
+  dev: {
+    processes: [],
+    watch: {},
+    output: 'dev.log',
+  },
+});
+```

@@ -1,0 +1,100 @@
+---
+title: Migrations
+description: Create, run, roll back, and inspect database migrations using the telaio migrate subcommands.
+---
+
+# Migrations
+
+Telaio wraps [Kysely's migration system](https://kysely.dev/docs/migrations) with a set of CLI subcommands. Migrations are TypeScript files with `up` and `down` exports, discovered from a directory on disk.
+
+## Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `telaio migrate create <name>` | Create a new migration file |
+| `telaio migrate latest` | Run all pending migrations |
+| `telaio migrate up` | Run the next pending migration only |
+| `telaio migrate down` | Roll back the most recent applied migration |
+| `telaio migrate status` | List all migrations with applied/pending status |
+
+```bash
+pnpx telaio migrate create add-users-table
+pnpx telaio migrate latest
+pnpx telaio migrate status
+```
+
+## Migration file format
+
+`telaio migrate create <name>` generates a file named `<timestamp>_<name>.ts` in your migrations directory. The timestamp format is `YYYYMMDDHHMMSS`.
+
+```
+src/db/migrations/
+  20240315120000_add-users-table.ts
+  20240316090000_add-posts-table.ts
+  20240317150000_add-indexes.ts
+```
+
+Each file must export `up` and `down` functions:
+
+```typescript
+import type { Kysely } from 'kysely';
+import { sql } from 'kysely';
+
+export async function up(db: Kysely<unknown>): Promise<void> {
+  await db.schema
+    .createTable('users')
+    .addColumn('id', 'uuid', (col) =>
+      col.primaryKey().defaultTo(sql`gen_random_uuid()`)
+    )
+    .addColumn('email', 'text', (col) => col.notNull().unique())
+    .addColumn('name', 'text', (col) => col.notNull())
+    .addColumn('created_at', 'timestamptz', (col) =>
+      col.notNull().defaultTo(sql`now()`)
+    )
+    .execute();
+}
+
+export async function down(db: Kysely<unknown>): Promise<void> {
+  await db.schema.dropTable('users').execute();
+}
+```
+
+## Migration tables
+
+Telaio uses two separate migration tables that never conflict with each other:
+
+| Table | Purpose |
+|-------|---------|
+| `_telaio_migrations` | Telaio's own internal framework migrations |
+| `kysely_migration` | Your application migrations (Kysely default) |
+
+`telaio migrate latest` runs framework migrations first, then your app migrations, in the correct dependency order. You do not need to manage framework migrations manually.
+
+## Custom migrations directory
+
+Pass `--dir` to override the default migrations directory:
+
+```bash
+pnpx telaio migrate latest --dir src/custom/migrations
+pnpx telaio migrate create add-feature --dir src/custom/migrations
+```
+
+The default directory is resolved from your project root.
+
+## Running migrations programmatically
+
+If you need to run migrations inside application code rather than from the CLI:
+
+```typescript
+import { createMigrator, migrateToLatest, runFrameworkMigrations } from 'telaio/db/migrations';
+
+// Always run framework migrations first
+await runFrameworkMigrations(db);
+
+// Then run your app migrations
+await migrateToLatest(db, 'src/db/migrations');
+```
+
+<Callout type="warn">
+Always run `runFrameworkMigrations` before `migrateToLatest`. Framework migrations set up internal Telaio tables (such as the queue schema) that your app migrations may depend on.
+</Callout>
