@@ -36,7 +36,7 @@ Each method returns a new `AppBuilder` with the updated type parameters. Nothing
 | `.withQueues(registry, options?)` | Registers pg-boss producer and typed consumers | `F & { queue: true }` |
 | `.withAuth(adapter)` | Registers the auth Fastify plugin | `F & { auth: true }`, `TSession = S` |
 | `.withSwagger(options)` | Registers OpenAPI spec generation | no change |
-| `.withApiDocs(options?)` | Registers Scalar UI at `/reference` | `F & { apiDocs: true }` |
+| `.withApiDocs(options?)` | Registers Scalar UI at `/docs` | `F & { apiDocs: true }` |
 | `.withPlugins(options)` | Configures autoload dir, rate limiting, CORS, etc. | no change |
 | `.withSchemas(dir)` | Sets the directory for auto-registered TypeBox schemas | no change |
 | `.onReady(fn)` | Registers a hook called after `fastify.listen()` | no change |

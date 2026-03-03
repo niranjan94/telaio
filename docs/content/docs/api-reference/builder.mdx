@@ -103,7 +103,7 @@ Registers Fastify's `@fastify/swagger` plugin with the given options. Does not c
 withApiDocs(options?: ScalarOptions): AppBuilder<F & { apiDocs: true }, TSession, TConfig>
 ```
 
-Registers the Scalar API reference UI at `/reference`. Sets the `apiDocs` feature flag to `true`. Requires `.withSwagger()` to have been called first.
+Registers the Scalar API reference UI at `/docs` (JSON spec at `/docs/json`). Sets the `apiDocs` feature flag to `true`. Requires `.withSwagger()` to have been called first.
 
 #### .withPlugins(options)
 
@@ -143,7 +143,7 @@ Registers a hook that is called during graceful shutdown (before `fastify.close(
 withTempFiles(): AppBuilder<F, TSession, TConfig>
 ```
 
-Enables temporary file upload support via `@fastify/multipart`. Required if any route handler accesses `request.tmpFiles`.
+Enables temporary file upload support via `@fastify/multipart`. Required if any route handler accesses `request.tempFiles`.
 
 #### .asEphemeral()
 
@@ -169,13 +169,19 @@ Assembles the application. Performs a fixed 12-step assembly (see [Build assembl
 interface WithDatabaseOptions {
   pool?: pg.Pool;
   db?: Kysely<unknown>;
+  poolOptions?: PoolOptions;
+  databaseOptions?: DatabaseOptions;
+  citext?: boolean;
 }
 ```
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `pool` | `pg.Pool` | Pre-built pool to reuse. If omitted, one is created from config. |
-| `db` | `Kysely<unknown>` | Pre-built Kysely instance to reuse. If omitted, one is created from `pool`. |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `pool` | `pg.Pool` | — | Pre-built pool to reuse (skips internal pool creation) |
+| `db` | `Kysely<unknown>` | — | Pre-built Kysely instance to reuse (skips internal db creation) |
+| `poolOptions` | `PoolOptions` | — | Pool options used when creating a pool internally (overrides config) |
+| `databaseOptions` | `DatabaseOptions` | — | Kysely options used when creating a db internally (e.g. extra plugins) |
+| `citext` | `boolean` | `true` | Whether to register the CITEXT array parser on startup. Set to `false` if your schema does not use `CITEXT[]`. |
 
 ---
 
@@ -183,17 +189,30 @@ interface WithDatabaseOptions {
 
 ```typescript
 interface WithCacheOptions {
+  instance?: Cache;
+  cacheOptions?: CacheOptions;
+}
+
+interface CacheOptions {
   enabled?: boolean;
   url?: string;
-  instance?: Cache;
 }
 ```
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `enabled` | `boolean` | Override `REDIS_ENABLED` from config. |
-| `url` | `string` | Override `REDIS_URL` from config. |
-| `instance` | `Cache` | Pre-built cache instance to reuse. |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `instance` | `Cache` | — | Pre-built Cache instance to reuse (skips internal creation) |
+| `cacheOptions` | `CacheOptions` | — | Cache options when creating internally: `enabled` (default `true`) and `url` (Redis URI) |
+
+**Note:** `enabled` and `url` are properties of `cacheOptions`, not of `WithCacheOptions` directly.
+
+```typescript
+// Correct:
+.withCache({ cacheOptions: { enabled: false } })  // disabled stub
+
+// Incorrect (these fields are ignored):
+.withCache({ enabled: false })  // has no effect
+```
 
 ---
 
@@ -233,9 +252,13 @@ The result of calling `.build()`. Properties that depend on feature flags are on
 | `db` | `database: true` | `Kysely<unknown>` | Kysely query builder instance |
 | `cache` | `cache: true` | `Cache` | Redis wrapper (or no-op stub if disabled) |
 | `queue` | `queue: true` | `QueueProducer<TQueues>` | Typed pg-boss producer |
-| `auth` | `auth: true` | `{ session: TSession }` | Auth context |
+| `auth` | `auth: true` | `{ session: TSession }` | **Phantom type marker only -- not a runtime object.** This property does not exist at runtime. Its purpose is to expose `TSession` through the type system. Access the session at runtime via `req.getAuthSession()` or `req.maybeAuthSession` in route handlers. |
 
 Accessing a conditional property without enabling the feature is a compile-time error. See [Phantom Types](/docs/core-concepts/phantom-types).
+
+<Callout type="warn">
+`app.auth` is a compile-time phantom type only. It does not exist at runtime -- accessing `app.auth` will return `undefined`. The session is available inside route handlers via `req.getAuthSession()` (throws if not authenticated) or `req.maybeAuthSession` (null if not authenticated).
+</Callout>
 
 ---
 
