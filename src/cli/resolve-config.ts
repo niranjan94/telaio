@@ -31,10 +31,21 @@ export function findConfigFile(cwd: string): string | null {
   }
 
   // Auto-discover
-  for (const ext of CONFIG_EXTENSIONS) {
-    const candidate = path.join(cwd, `telaio.config${ext}`);
-    if (fs.existsSync(candidate)) {
-      return candidate;
+  for (const pathPrefix of [
+    'telaio.config',
+    path.join('src', 'telaio.config'),
+    path.join('dist', 'telaio.config'),
+    path.join('dist/src', 'telaio.config'),
+    'config',
+    path.join('src', 'config'),
+    path.join('dist', 'config'),
+    path.join('dist/src', 'config'),
+  ]) {
+    for (const ext of CONFIG_EXTENSIONS) {
+      const candidate = path.join(cwd, `${pathPrefix}${ext}`);
+      if (fs.existsSync(candidate)) {
+        return candidate;
+      }
     }
   }
 
