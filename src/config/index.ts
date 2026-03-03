@@ -69,9 +69,9 @@ export interface CliMetadata {
 
 /** Options accepted by `defineConfig()` -- excludes runtime-only fields, adds CLI metadata. */
 export type DefineConfigOptions<
-  TFlags extends ConfigModuleFlags = ConfigModuleFlags,
+  TModules extends ConfigModules = ConfigModules,
   TExtend extends z.ZodType = z.ZodObject<Record<string, never>>,
-> = Omit<LoadConfigOptions<TFlags, TExtend>, 'skipEnvLoad' | 'source'> & {
+> = Omit<LoadConfigOptions<TModules, TExtend>, 'skipEnvLoad' | 'source'> & {
   /** Path to app builder module. Default: auto-discover. */
   app?: string;
   /** Client generation config. */
@@ -84,9 +84,9 @@ export type DefineConfigOptions<
 
 /** Branded result returned by `defineConfig()`. */
 export type DefineConfigResult<
-  TFlags extends ConfigModuleFlags = ConfigModuleFlags,
+  TModules extends ConfigModules = ConfigModules,
   TExtend extends z.ZodType = z.ZodObject<Record<string, never>>,
-> = DefineConfigOptions<TFlags, TExtend> & {
+> = DefineConfigOptions<TModules, TExtend> & {
   readonly [K: symbol]: true;
 };
 
@@ -96,14 +96,14 @@ export type DefineConfigResult<
  * imports it, and calls `loadConfigAsync()` with the provided options.
  */
 export function defineConfig<
-  const TFlags extends ConfigModuleFlags,
+  const TModules extends ConfigModules,
   TExtend extends z.ZodType = z.ZodObject<Record<string, never>>,
 >(
-  options: DefineConfigOptions<TFlags, TExtend>,
-): DefineConfigResult<TFlags, TExtend> {
+  options: DefineConfigOptions<TModules, TExtend>,
+): DefineConfigResult<TModules, TExtend> {
   return Object.assign({}, options, {
     [TELAIO_CONFIG_BRAND]: true as const,
-  }) as DefineConfigResult<TFlags, TExtend>;
+  }) as DefineConfigResult<TModules, TExtend>;
 }
 
 /** Type guard that checks whether a value was produced by `defineConfig()`. */
@@ -140,8 +140,8 @@ export type {
   ServerConfig,
 };
 
-/** Feature flags that control which config schema fragments are merged. */
-export interface ConfigModuleFlags {
+/** Modules that control which config schema fragments are merged. */
+export interface ConfigModules {
   server?: boolean;
   database?: boolean;
   cache?: boolean;
@@ -152,11 +152,11 @@ export interface ConfigModuleFlags {
 
 /** Options for loadConfig(). */
 export interface LoadConfigOptions<
-  TFlags extends ConfigModuleFlags = ConfigModuleFlags,
+  TModules extends ConfigModules = ConfigModules,
   TExtend extends z.ZodType = z.ZodObject<Record<string, never>>,
 > {
   /** Enable module-specific config fragments. */
-  flags?: TFlags;
+  modules?: TModules;
   /** App-specific Zod schema to merge with the composed schema. */
   extend?: TExtend;
   /**
@@ -173,27 +173,27 @@ export interface LoadConfigOptions<
  * Each enabled flag merges the corresponding module config into the result.
  */
 export type InferConfig<
-  TFlags extends ConfigModuleFlags,
+  TModules extends ConfigModules,
   TExtend extends z.ZodType,
 > = CoreConfig &
-  (TFlags['server'] extends true ? ServerConfig : unknown) &
-  (TFlags['database'] extends true ? DatabaseConfig : unknown) &
-  (TFlags['cache'] extends true ? CacheConfig : unknown) &
-  (TFlags['queue'] extends true ? QueueConfig : unknown) &
-  (TFlags['s3'] extends true ? S3Config : unknown) &
-  (TFlags['email'] extends true ? EmailConfig : unknown) &
+  (TModules['server'] extends true ? ServerConfig : unknown) &
+  (TModules['database'] extends true ? DatabaseConfig : unknown) &
+  (TModules['cache'] extends true ? CacheConfig : unknown) &
+  (TModules['queue'] extends true ? QueueConfig : unknown) &
+  (TModules['s3'] extends true ? S3Config : unknown) &
+  (TModules['email'] extends true ? EmailConfig : unknown) &
   z.infer<TExtend>;
 
-/** Collects Zod object shapes from enabled module flags into a single merged shape. */
-function collectShapes(flags: ConfigModuleFlags): ZodRawShape {
+/** Collects Zod object shapes from enabled modules into a single merged shape. */
+function collectShapes(modules: ConfigModules): ZodRawShape {
   const shapes: ZodRawShape[] = [coreConfigSchema.shape];
 
-  if (flags.server) shapes.push(serverConfigSchema.shape);
-  if (flags.database) shapes.push(databaseConfigSchema.shape);
-  if (flags.cache) shapes.push(cacheConfigSchema.shape);
-  if (flags.queue) shapes.push(queueConfigSchema.shape);
-  if (flags.s3) shapes.push(s3ConfigSchema.shape);
-  if (flags.email) shapes.push(emailConfigSchema.shape);
+  if (modules.server) shapes.push(serverConfigSchema.shape);
+  if (modules.database) shapes.push(databaseConfigSchema.shape);
+  if (modules.cache) shapes.push(cacheConfigSchema.shape);
+  if (modules.queue) shapes.push(queueConfigSchema.shape);
+  if (modules.s3) shapes.push(s3ConfigSchema.shape);
+  if (modules.email) shapes.push(emailConfigSchema.shape);
 
   return Object.assign({}, ...shapes);
 }
@@ -204,18 +204,18 @@ function collectShapes(flags: ConfigModuleFlags): ZodRawShape {
  * Optionally loads env vars from .env files before parsing.
  */
 export function loadConfig<
-  const TFlags extends ConfigModuleFlags,
+  const TModules extends ConfigModules,
   TExtend extends z.ZodType = z.ZodObject<Record<string, never>>,
 >(
-  options: LoadConfigOptions<TFlags, TExtend> = {},
-): InferConfig<TFlags, TExtend> {
-  const { flags = {} as TFlags, extend, skipEnvLoad = false, source } = options;
+  options: LoadConfigOptions<TModules, TExtend> = {},
+): InferConfig<TModules, TExtend> {
+  const { modules = {} as TModules, extend, skipEnvLoad = false, source } = options;
 
   if (!skipEnvLoad) {
     dotenv.config({ quiet: true });
   }
 
-  const shape = collectShapes(flags);
+  const shape = collectShapes(modules);
 
   // Merge user extension shape if provided
   const extendShape =
@@ -226,7 +226,7 @@ export function loadConfig<
   const finalSchema = z.object({ ...shape, ...extendShape });
 
   return finalSchema.parse(source ?? process.env) as InferConfig<
-    TFlags,
+    TModules,
     TExtend
   >;
 }
@@ -236,11 +236,11 @@ export function loadConfig<
  * Use this when CONFIG_SOURCE=ssm:/path is set.
  */
 export async function loadConfigAsync<
-  const TFlags extends ConfigModuleFlags,
+  const TModules extends ConfigModules,
   TExtend extends z.ZodType = z.ZodObject<Record<string, never>>,
 >(
-  options: LoadConfigOptions<TFlags, TExtend> = {},
-): Promise<InferConfig<TFlags, TExtend>> {
+  options: LoadConfigOptions<TModules, TExtend> = {},
+): Promise<InferConfig<TModules, TExtend>> {
   if (!options.skipEnvLoad) {
     await loadEnv();
   }
