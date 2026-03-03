@@ -166,57 +166,55 @@ This is the recommended approach for tests that do not need Redis.
 
 ---
 
-## LiveConfigService\<T\>
+## LiveConfigService\<TModules\>
 
 ```typescript
-class LiveConfigService<T> {
-  constructor(db: Kysely<any>, cache: Cache, options?: LiveConfigOptions)
+class LiveConfigService<TModules extends Record<string, unknown>> {
+  constructor(options: LiveConfigOptions)
 
-  async get(key: string): Promise<T | null>
-  async set(key: string, value: T): Promise<void>
-  async delete(key: string): Promise<void>
+  async get<K extends keyof TModules>(module: K): Promise<TModules[K] | null>
+  async set<K extends keyof TModules>(module: K, config: TModules[K]): Promise<void>
+  async delete<K extends keyof TModules>(module: K): Promise<void>
+}
+
+interface LiveConfigOptions {
+  db: Kysely<any>;
+  cache: Cache;
+  ttl?: number;        // cache TTL in seconds (default: 120)
+  keyPrefix?: string;  // cache key prefix (default: 'live-config')
+  logger?: Logger;
 }
 ```
 
-A stale-while-revalidate (SWR) config service backed by a Postgres database table and Redis cache. Stores structured config values that need to survive restarts but also be updated at runtime without a deploy.
+A stale-while-revalidate (SWR) config service backed by a Postgres table and Redis cache. On cache hit, returns the cached value and refreshes in the background. On cache miss, fetches from Postgres and writes to Redis.
 
-Values are served from Redis when available (fast path). On a cache miss they are loaded from Postgres and written back to Redis with a TTL (slow path). Updates write through to both stores.
+The expected table shape is: `live_configs(module TEXT PRIMARY KEY, config JSONB)`.
 
 ### Constructor
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `db` | `Kysely<any>` | Kysely database instance |
-| `cache` | `Cache` | Cache instance (can be the disabled stub) |
-| `options` | `LiveConfigOptions` | Optional TTL and table name overrides |
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `db` | `Kysely<any>` | required | Kysely database instance |
+| `cache` | `Cache` | required | Cache instance (disabled stub is valid) |
+| `ttl` | `number` | `120` | Cache TTL in seconds |
+| `keyPrefix` | `string` | `'live-config'` | Prefix for Redis cache keys |
+| `logger` | `Logger` | — | Pino logger for error reporting |
 
 ### Methods
 
-#### .get(key)
+#### .get(module)
 
-```typescript
-async get(key: string): Promise<T | null>
-```
+Returns the config for `module`. Redis first (fast path), falls back to Postgres. Returns `null` if not found in either store.
 
-Returns the value for `key`. Checks Redis first (fast path), falls back to Postgres (slow path, then repopulates Redis). Returns `null` if the key does not exist in either store.
+#### .set(module, config)
 
-#### .set(key, value)
+Persists `config` to Postgres and writes to Redis. Both writes happen before resolving.
 
-```typescript
-async set(key: string, value: T): Promise<void>
-```
+#### .delete(module)
 
-Persists `value` to Postgres and writes it to Redis. Both writes happen before the method resolves.
+Removes the config from both Postgres and Redis. Both deletes happen before resolving.
 
-#### .delete(key)
-
-```typescript
-async delete(key: string): Promise<void>
-```
-
-Deletes the key from both Postgres and Redis.
-
-### Usage example
+### Usage
 
 ```typescript
 import { LiveConfigService } from 'telaio/cache';
@@ -226,10 +224,17 @@ interface FeatureFlags {
   maxUploadSizeMb: number;
 }
 
-const flags = new LiveConfigService<FeatureFlags>(db, cache);
+// Module name becomes the generic key for type safety
+interface AppConfigs {
+  'checkout-flags': FeatureFlags;
+}
 
-await flags.set('checkout-flags', { newCheckout: true, maxUploadSizeMb: 50 });
+const configs = new LiveConfigService<AppConfigs>({ db, cache });
 
-const current = await flags.get('checkout-flags');
-// { newCheckout: true, maxUploadSizeMb: 50 }
+await configs.set('checkout-flags', { newCheckout: true, maxUploadSizeMb: 50 });
+
+const flags = await configs.get('checkout-flags');
+// FeatureFlags | null
+
+await configs.delete('checkout-flags');
 ```
