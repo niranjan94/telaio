@@ -134,7 +134,9 @@ export interface MigrateResult {
  * Throws if an error occurred during migration.
  */
 function collectResults(
-  results: { migrationName: string; direction: string; status: string }[] | undefined,
+  results:
+    | { migrationName: string; direction: string; status: string }[]
+    | undefined,
   error: unknown,
   label: string,
   log: Logger,

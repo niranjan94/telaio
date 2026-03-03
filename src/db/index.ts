@@ -4,7 +4,11 @@ export {
   createPool,
   registerCitextParser,
 } from './client.js';
-export type { MigrateResult, MigrationResult, MigratorOptions } from './migrator.js';
+export type {
+  MigrateResult,
+  MigrationResult,
+  MigratorOptions,
+} from './migrator.js';
 export {
   createMigrationFile,
   createMigrator,
