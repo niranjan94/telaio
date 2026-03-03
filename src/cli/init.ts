@@ -2,38 +2,54 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { Command } from 'commander';
 
-/** Template for the app config file. */
-const CONFIG_TEMPLATE = `import { loadConfig } from 'telaio/config';
+/** Template for the defineConfig declaration (CLI metadata + schema definition). */
+const TELAIO_CONFIG_TEMPLATE = `import { defineConfig } from 'telaio/config';
 import { z } from 'zod';
 
-export const config = loadConfig({
-  database: true,
-  cache: true,
+export default defineConfig({
+  flags: { server: true, database: true, cache: true },
   extend: z.object({
-    // Add your app-specific config here
+    // Add your app-specific env vars here
   }),
 });
 `;
 
+/** Template for the runtime config loader. */
+const CONFIG_TEMPLATE = `import { loadConfigAsync } from 'telaio/config';
+import definition from './telaio.config.js';
+
+const config = await loadConfigAsync(definition);
+export default config;
+`;
+
 /** Template for the main app builder file. */
 const APP_TEMPLATE = `import { createApp } from 'telaio';
-import { config } from './config.js';
+import config from './config.js';
 
-export const app = await createApp({ config })
-  .withPlugins({
-    cors: true,
-    helmet: true,
-  })
-  .withSwagger({
-    info: { title: 'My API', version: '1.0.0' },
-  })
-  .withApiDocs()
-  .build();
+/** Builds and configures the Fastify application. */
+export async function buildApp(ephemeral = false) {
+  const builder = createApp({ config })
+    .withPlugins({
+      cors: true,
+      helmet: true,
+    })
+    .withSwagger({
+      info: { title: 'My API', version: '1.0.0' },
+    })
+    .withApiDocs();
+
+  if (ephemeral) {
+    builder.asEphemeral();
+  }
+
+  return builder.build();
+}
 `;
 
 /** Template for the server entry point. */
-const SERVER_TEMPLATE = `import { app } from './app.js';
+const SERVER_TEMPLATE = `import { buildApp } from './app.js';
 
+const app = await buildApp();
 await app.start();
 `;
 
@@ -97,6 +113,7 @@ REDIS_URL=redis://localhost:6379
 
 /** Scaffolding file map. */
 const FILES: Record<string, string> = {
+  'src/telaio.config.ts': TELAIO_CONFIG_TEMPLATE,
   'src/config.ts': CONFIG_TEMPLATE,
   'src/app.ts': APP_TEMPLATE,
   'src/server.ts': SERVER_TEMPLATE,

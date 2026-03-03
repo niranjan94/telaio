@@ -91,6 +91,11 @@ describe('telaio init', () => {
     await program.parseAsync(['node', 'test', 'init', tmpDir]);
 
     // Check key files were created
+    const telaioConfigStat = await fs.stat(
+      path.join(tmpDir, 'src/telaio.config.ts'),
+    );
+    expect(telaioConfigStat.isFile()).toBe(true);
+
     const configStat = await fs.stat(path.join(tmpDir, 'src/config.ts'));
     expect(configStat.isFile()).toBe(true);
 
