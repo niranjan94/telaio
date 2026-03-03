@@ -1,4 +1,17 @@
 {
   "title": "API Reference",
-  "pages": ["builder", "config", "db", "cache", "queue", "auth", "schema", "errors", "email", "s3", "logger", "server"]
+  "pages": [
+    "builder",
+    "config",
+    "db",
+    "cache",
+    "queue",
+    "auth",
+    "schema",
+    "errors",
+    "email",
+    "s3",
+    "logger",
+    "server"
+  ]
 }

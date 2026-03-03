@@ -1,4 +1,13 @@
 {
   "title": "Modules",
-  "pages": ["database", "caching", "queues", "auth", "better-auth", "email", "s3", "logger"]
+  "pages": [
+    "database",
+    "caching",
+    "queues",
+    "auth",
+    "better-auth",
+    "email",
+    "s3",
+    "logger"
+  ]
 }

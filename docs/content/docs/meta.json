@@ -1,4 +1,13 @@
 {
   "title": "Telaio",
-  "pages": ["index", "introduction", "core-concepts", "modules", "server", "cli", "testing", "api-reference"]
+  "pages": [
+    "index",
+    "introduction",
+    "core-concepts",
+    "modules",
+    "server",
+    "cli",
+    "testing",
+    "api-reference"
+  ]
 }

@@ -1,4 +1,9 @@
 {
   "title": "Core Concepts",
-  "pages": ["builder-pattern", "phantom-types", "config-system", "project-conventions"]
+  "pages": [
+    "builder-pattern",
+    "phantom-types",
+    "config-system",
+    "project-conventions"
+  ]
 }

@@ -1,4 +1,10 @@
 {
   "title": "Testing",
-  "pages": ["overview", "unit-tests", "integration-tests", "type-tests", "e2e-tests"]
+  "pages": [
+    "overview",
+    "unit-tests",
+    "integration-tests",
+    "type-tests",
+    "e2e-tests"
+  ]
 }
