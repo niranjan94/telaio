@@ -1,0 +1,217 @@
+---
+title: Schemas & OpenAPI
+description: TypeBox schema registration, built-in schemas, schema helpers, Swagger spec generation, and the Scalar API explorer.
+---
+
+# Schemas & OpenAPI
+
+Telaio uses [TypeBox](https://github.com/sinclairzx81/typebox) for runtime and compile-time schema validation. Schemas are registered with Fastify so they can be referenced by `$id` throughout the app and appear as named components in the generated OpenAPI spec.
+
+## Auto-registration from src/schemas/
+
+Place your TypeBox schemas in `src/schemas/`. Telaio scans the directory at startup and registers every export whose name ends in `Schema`. The `$id` is used as the component name in the OpenAPI spec.
+
+```typescript
+// src/schemas/user.ts
+import { Type } from '@sinclair/typebox';
+
+export const UserSchema = Type.Object(
+  {
+    id: Type.String({ format: 'uuid' }),
+    email: Type.String({ format: 'email' }),
+    name: Type.String(),
+    createdAt: Timestamp,
+  },
+  { $id: 'User' },
+);
+
+export const CreateUserSchema = Type.Object(
+  {
+    email: Type.String({ format: 'email' }),
+    name: Type.String(),
+  },
+  { $id: 'CreateUser' },
+);
+```
+
+<Callout type="info">
+Files named `index.ts` and `utils.ts` are skipped during schema auto-discovery. If a schema export does not have a `$id`, Telaio auto-generates one from the export name (e.g. `UserSchema` becomes `User`).
+</Callout>
+
+You can also pass a custom directory via `.withSchemas(dir)`:
+
+```typescript
+.withSchemas('src/api/schemas')
+```
+
+## Built-in schemas
+
+These schemas are registered automatically with every Telaio app. They are available by `$ref` in any route schema and appear in your OpenAPI spec.
+
+| Schema | `$id` | Description |
+|--------|-------|-------------|
+| `SortPaginationParamsSchema` | `SortPaginationParams` | Query params: `sort`, `limit` (1-100, default 10), `skip` (default 0) |
+| `PaginationMetaSchema` | `PaginationMeta` | Response meta: `total`, `skip`, `limit` |
+| `GenericErrorResponseSchema` | `GenericErrorResponse` | Generic 500 error body |
+| `BadRequestErrorResponseSchema` | `BadRequestErrorResponse` | 400 error body |
+| `UnauthorizedResponseSchema` | `UnauthorizedResponse` | 401 error body |
+| `ForbiddenResponseSchema` | `ForbiddenResponse` | 403 error body |
+| `NotFoundResponseSchema` | `NotFoundResponse` | 404 error body |
+
+```typescript
+import {
+  SortPaginationParamsSchema,
+  NotFoundResponseSchema,
+} from 'telaio/schema';
+
+fastify.get('/users/:id', {
+  schema: {
+    response: {
+      200: AutoRef(UserSchema),
+      404: AutoRef(NotFoundResponseSchema),
+    },
+  },
+}, handler);
+```
+
+## Schema helpers
+
+Import helpers from `telaio/schema`.
+
+### AutoRef
+
+Emits a JSON Schema `$ref` pointer using the schema's `$id`. Use this in `schema.response`, `schema.querystring`, and similar fields when you want the OpenAPI spec to reference a named component rather than inlining the full schema.
+
+```typescript
+import { AutoRef } from 'telaio/schema';
+
+schema: {
+  querystring: AutoRef(SortPaginationParamsSchema),
+  response: {
+    200: AutoRef(UserSchema),
+  },
+}
+```
+
+### Nullable
+
+Produces `Schema | null` -- useful for optional fields that can be explicitly set to null.
+
+```typescript
+import { Nullable } from 'telaio/schema';
+
+const UserSchema = Type.Object({
+  id: Type.String(),
+  deletedAt: Nullable(Timestamp),  // Date | null
+});
+```
+
+### PlainEnum
+
+Creates a TypeBox `TEnum` from a TypeScript enum-like object. Avoids the verbose TypeBox enum syntax.
+
+```typescript
+import { PlainEnum } from 'telaio/schema';
+
+enum UserRole {
+  Admin = 'admin',
+  Member = 'member',
+  Guest = 'guest',
+}
+
+const RoleSchema = PlainEnum(UserRole);
+// Equivalent to Type.Enum(UserRole)
+```
+
+### TypeName
+
+Adds a string literal field with a default value, useful for discriminated unions and typed payloads.
+
+```typescript
+import { TypeName } from 'telaio/schema';
+
+const CreateUserEventSchema = Type.Object({
+  type: TypeName('user.created'),
+  userId: Type.String(),
+});
+```
+
+### Paginated
+
+Wraps a data schema in a standard paginated response envelope.
+
+```typescript
+import { Paginated } from 'telaio/schema';
+
+schema: {
+  response: {
+    200: Paginated(UserSchema),
+    // Produces: { data: User[], meta: { total, skip, limit } }
+  },
+}
+```
+
+`Paginated` accepts an optional second argument for additional options on the wrapper object.
+
+### Timestamp
+
+A `Type.Unsafe<Date>` schema with `format: 'date-time'`. Use it wherever you have a date/time column.
+
+```typescript
+import { Timestamp } from 'telaio/schema';
+
+const EventSchema = Type.Object({
+  id: Type.String(),
+  occurredAt: Timestamp,
+});
+```
+
+## Swagger / OpenAPI spec
+
+Call `.withSwagger(options)` to register OpenAPI 3.1 spec generation. Swagger must be configured before routes are loaded -- Telaio enforces this automatically.
+
+```typescript
+const app = await createApp({ config })
+  .withSwagger({
+    info: {
+      title: 'My API',
+      version: '1.0.0',
+      description: 'REST API for the My App platform',
+    },
+  })
+  .build();
+```
+
+### SwaggerOptions
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `info.title` | `string` | Required. API title |
+| `info.version` | `string` | API version string |
+| `info.description` | `string` | API description (supports Markdown) |
+
+Additional standard OpenAPI fields can be passed alongside `info`. They are forwarded to the underlying `@fastify/swagger` plugin.
+
+Schema `$id` values become `$ref` component names in the generated spec. A schema registered with `$id: 'User'` appears as `#/components/schemas/User` in every route that references it via `AutoRef`.
+
+## Scalar API explorer
+
+Call `.withApiDocs(options?)` to mount the Scalar interactive API reference.
+
+```typescript
+const app = await createApp({ config })
+  .withSwagger({ info: { title: 'My API' } })
+  .withApiDocs()
+  .build();
+```
+
+| URL | Contents |
+|-----|----------|
+| `/docs` | Scalar interactive API explorer UI |
+| `/docs/json` | Raw OpenAPI JSON spec |
+
+`ScalarOptions` are passed through to `@scalar/fastify-api-reference`. Any valid Scalar configuration option can be provided.
+
+<Callout type="info">
+`.withApiDocs()` requires `.withSwagger()` to be called first. If you call `.withApiDocs()` without `.withSwagger()`, the Scalar UI will have no spec to display.
+</Callout>

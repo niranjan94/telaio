@@ -1,0 +1,135 @@
+---
+title: Plugins
+description: Opt-in Fastify plugins for CORS, cookies, compression, multipart uploads, WebSocket, SSE, and route autoloading.
+---
+
+# Plugins
+
+`.withPlugins(options)` registers a set of Fastify plugins. Every plugin is guarded by a dynamic `import()` -- if the peer dependency is not installed, the plugin is silently skipped. The app starts without error.
+
+## Plugin table
+
+| Option | Peer Dependency | Description |
+|--------|----------------|-------------|
+| `cors` | `@fastify/cors` | Adds CORS headers. Defaults: `credentials: true`, methods `GET POST PUT PATCH DELETE OPTIONS`, `maxAge: 86400` |
+| `helmet` | `@fastify/helmet` | Adds security headers via Helmet. CSP is configured to include the Scalar CDN by default |
+| `cookie` | `@fastify/cookie` | Parses and signs cookies. Pass `{ secret: '...' }` to enable signed cookies |
+| `compress` | `@fastify/compress` | Compresses responses with gzip/brotli. Set `global: true` to compress all responses |
+| `multipart` | `@fastify/multipart` | Handles multipart form data. Default limits: `fileSize: 10 MB`, `files: 1` |
+| `websocket` | `@fastify/websocket` | Enables WebSocket upgrade support |
+| `sse` | `fastify-sse-v2` | Adds Server-Sent Events support |
+| `autoload` | `@fastify/autoload` | Discovers and loads routes from `src/routes/` |
+
+### Registration order
+
+Plugins are registered in this fixed order regardless of how you declare them in the options object:
+
+SSE -> Cookie -> WebSocket -> Compress -> CORS -> Helmet -> Multipart -> Autoload
+
+This order is intentional. CORS and security headers must apply before route handlers run. Cookie parsing must be available before auth hooks fire.
+
+## Usage
+
+```typescript
+const app = await createApp({ config })
+  .withPlugins({
+    cors: true,                // default CORS settings
+    cookie: { secret: process.env.COOKIE_SECRET },
+    compress: { global: true },
+    multipart: {
+      limits: {
+        fileSize: 50 * 1024 * 1024,  // 50 MB
+        files: 5,
+      },
+    },
+    autoload: {
+      dir: 'src/routes',
+      routeParams: true,
+      cascadeHooks: true,
+    },
+  })
+  .build();
+```
+
+## CORS options
+
+Pass `true` to use all defaults, or an object to override specific fields.
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `credentials` | `true` | Allow cookies and Authorization headers in cross-origin requests |
+| `allowedHeaders` | -- | Restrict which request headers are permitted |
+| `methods` | `GET POST PUT PATCH DELETE OPTIONS` | Allowed HTTP methods |
+| `maxAge` | `86400` | Preflight cache TTL in seconds |
+| `origins` | -- | Allowed origins. Omit to reflect the request origin |
+
+```typescript
+.withPlugins({
+  cors: {
+    origins: ['https://app.example.com', 'https://admin.example.com'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  },
+})
+```
+
+## Helmet options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `enableCSPNonces` | `boolean` | Attach a CSP nonce to every request |
+| `contentSecurityPolicy` | `object` | Raw CSP directives to merge with Telaio's defaults |
+
+## Multipart limits
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `fieldNameSize` | -- | Max field name length in bytes |
+| `fieldSize` | -- | Max field value size in bytes |
+| `fields` | -- | Max number of non-file fields |
+| `fileSize` | `10 MB` | Max file size in bytes |
+| `files` | `1` | Max number of files per request |
+
+## Temp file support
+
+Call `.withTempFiles()` on the builder to enable automatic temp file management. This adds three decorators to every request object.
+
+```typescript
+const app = await createApp({ config })
+  .withTempFiles()
+  .withPlugins({ multipart: true })
+  .build();
+```
+
+| Decorator | Description |
+|-----------|-------------|
+| `req.tempFiles` | Array of temp file paths registered for this request |
+| `req.addTempFile(path)` | Register a file path for automatic cleanup |
+| `req.getTempFile(opts?)` | Generate a unique temp file path and auto-register it |
+
+`req.getTempFile` accepts an optional `{ extension }` option to append a file extension to the generated path.
+
+All registered temp files are deleted automatically after the response is sent, including on error paths.
+
+```typescript
+fastify.post('/upload', async (req, reply) => {
+  const data = await req.file();
+  const tmpPath = req.getTempFile({ extension: '.jpg' });
+
+  // Write the uploaded file to the temp path
+  await pipeline(data.file, fs.createWriteStream(tmpPath));
+
+  // Process the file...
+  const result = await processImage(tmpPath);
+
+  // tmpPath is deleted automatically after reply is sent
+  return result;
+});
+```
+
+<Callout type="info">
+`req.getTempFile()` generates the path and registers it immediately. You do not need to call `req.addTempFile()` separately for files created via `req.getTempFile()`.
+</Callout>
+
+<Callout type="warn">
+If you write to a path obtained from `req.getTempFile()` but the write fails partway through, the partial file is still cleaned up automatically. The cleanup runs unconditionally after each response.
+</Callout>

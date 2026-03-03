@@ -1,0 +1,194 @@
+---
+title: Routing
+description: File-based route autoloading, TypeBox schema integration, request hooks, and the built-in health endpoint.
+---
+
+# Routing
+
+Telaio does not invent a new routing API. Fastify route syntax is unchanged. What Telaio adds is autoloading from a `src/routes/` directory, typed request decorators from built-in hooks, and schema helpers that emit proper `$ref` pointers in the OpenAPI spec.
+
+## Accessing the Fastify instance
+
+The `app.fastify` property exposes the full `FastifyInstance`. Everything Fastify supports -- plugins, decorators, hooks, route registration -- is available through it.
+
+```typescript
+const app = await createApp({ config }).withDatabase().build();
+
+// Register an additional plugin after build
+app.fastify.register(myPlugin);
+
+// Register a route directly
+app.fastify.get('/ping', async () => ({ pong: true }));
+```
+
+## Autoload
+
+When you call `.withPlugins({ autoload: ... })`, Telaio registers `@fastify/autoload` over your `src/routes/` directory. Every file that exports a default Fastify plugin is treated as a route module.
+
+```
+src/routes/
+  index.ts             → GET /
+  users/
+    index.ts           → GET /users
+    _id/
+      index.ts         → GET /users/:id
+  posts/
+    index.ts           → GET /posts
+```
+
+<Callout type="info">
+When `routeParams: true` is set in the autoload options, directory names wrapped in underscores (e.g. `_id`) are turned into route parameters (`:id`). Without that flag, use `[id]` directory naming instead.
+</Callout>
+
+### AutoloadOptions
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `dir` | `string` | Root directory for route discovery. Default: `src/routes/` |
+| `routeParams` | `boolean` | Convert `_param` directory names to `:param` route parameters |
+| `cascadeHooks` | `boolean` | Apply hooks from `_hooks.ts` files to child routes |
+| `autoHooks` | `boolean` | Enable `_hooks.ts` auto-hook discovery |
+
+### Route file shape
+
+```typescript
+// src/routes/users/index.ts → GET /users
+import type { FastifyPluginAsync } from 'fastify';
+import { Type } from '@sinclair/typebox';
+import { AutoRef, Paginated, SortPaginationParamsSchema } from 'telaio/schema';
+
+const plugin: FastifyPluginAsync = async (fastify) => {
+  fastify.get(
+    '/',
+    {
+      schema: {
+        querystring: AutoRef(SortPaginationParamsSchema),
+        response: {
+          200: Paginated(UserSchema),
+        },
+      },
+    },
+    async (req) => {
+      const { limit, skip, sort } = req.query;
+      // ...
+    },
+  );
+};
+
+export default plugin;
+```
+
+```typescript
+// src/routes/users/_id/index.ts → GET /users/:id (with routeParams: true)
+import type { FastifyPluginAsync } from 'fastify';
+import { Type } from '@sinclair/typebox';
+import { AutoRef } from 'telaio/schema';
+
+const plugin: FastifyPluginAsync = async (fastify) => {
+  fastify.get(
+    '/',
+    {
+      schema: {
+        params: Type.Object({ id: Type.String() }),
+        response: {
+          200: AutoRef(UserSchema),
+        },
+      },
+    },
+    async (req) => {
+      const { id } = req.params;
+      // ...
+    },
+  );
+};
+
+export default plugin;
+```
+
+## Auto-hooks
+
+When `cascadeHooks: true` is set, a `_hooks.ts` file in any route directory registers Fastify hooks that apply to all routes in that directory and all subdirectories below it.
+
+```typescript
+// src/routes/_hooks.ts — applies to every route in the app
+import type { FastifyPluginAsync } from 'fastify';
+
+const hooks: FastifyPluginAsync = async (fastify) => {
+  fastify.addHook('onRequest', async (req, reply) => {
+    // Runs on every request in this directory and below
+  });
+};
+
+export default hooks;
+```
+
+```typescript
+// src/routes/admin/_hooks.ts — applies only to /admin/** routes
+import type { FastifyPluginAsync } from 'fastify';
+
+const hooks: FastifyPluginAsync = async (fastify) => {
+  fastify.addHook('onRequest', async (req, reply) => {
+    if (!req.hasAuthSession()) {
+      return reply.code(401).send({ status: 'error', code: 'UNAUTHORIZED', message: 'Authentication required' });
+    }
+  });
+};
+
+export default hooks;
+```
+
+## Request decorators
+
+Telaio's built-in hooks register several decorators on every request object.
+
+| Decorator | Type | Description |
+|-----------|------|-------------|
+| `req.startTime` | `number` | Request start timestamp (`dayjs().valueOf()`) |
+| `req.maybeAuthSession` | `TSession \| null` | Authenticated session or `null` |
+| `req.getAuthSession()` | `TSession` | Returns the session or throws `UnauthorizedError` |
+| `req.hasAuthSession()` | `boolean` | `true` if a session is present |
+
+```typescript
+fastify.get('/me', async (req) => {
+  const session = req.getAuthSession(); // throws 401 if not authenticated
+  return { userId: session.userId };
+});
+
+fastify.get('/optional', async (req) => {
+  if (req.hasAuthSession()) {
+    // personalized response
+  } else {
+    // anonymous response
+  }
+});
+```
+
+## Health endpoint
+
+`GET /healthz` is registered automatically by Telaio. It returns `{ status: 'ok' }` and is excluded from request logging. No configuration is needed.
+
+```bash
+curl http://localhost:4001/healthz
+# { "status": "ok" }
+```
+
+## Using AutoRef in schema.response
+
+`AutoRef(Schema)` emits a JSON Schema `$ref` pointer using the schema's `$id`. When combined with `.withSwagger()`, each response schema appears in the OpenAPI spec as a named component rather than being inlined.
+
+```typescript
+import { AutoRef, Paginated, UserSchema } from '../schemas/index.js';
+
+fastify.get('/', {
+  schema: {
+    response: {
+      200: Paginated(UserSchema),      // emits $ref for both the list and meta
+      404: AutoRef(NotFoundResponseSchema),
+    },
+  },
+}, handler);
+```
+
+<Callout type="info">
+For `AutoRef` to resolve correctly, the referenced schema must be registered with Fastify before the route is loaded. Telaio registers built-in schemas and schemas from `src/schemas/` as part of the build assembly, before autoloading routes.
+</Callout>

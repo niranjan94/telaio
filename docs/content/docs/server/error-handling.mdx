@@ -1,0 +1,187 @@
+---
+title: Error Handling
+description: Typed HTTP error classes, error response format, handler priority, and how to create custom errors.
+---
+
+# Error Handling
+
+Telaio registers a global Fastify error handler. You throw typed error instances from route handlers; the framework serializes them into consistent JSON responses.
+
+## Error handler priority
+
+When an error reaches the global handler, it is classified in this order:
+
+1. **`RequestError` instance** -- uses the instance's `statusCode` and serializes via `.toJSON()`
+2. **Kysely `NoResultError`** (matched by constructor name) -- returns `404`
+3. **Fastify validation error** -- returns `422` with field-level validation details
+4. **Error with `statusCode < 500`** -- forwards the status code with a generic message
+5. **Everything else** -- returns `500` with a `logId` for log correlation
+
+## Error response format
+
+### Known errors (RequestError and subclasses)
+
+```typescript
+{
+  status: 'error',
+  code: 'NOT_FOUND',      // ErrorCode value
+  message: 'User not found'
+}
+```
+
+### Unknown 500 errors
+
+```typescript
+{
+  status: 'error',
+  code: 'ERROR',
+  message: 'An error occurred',
+  logId: 'a1b2c3d4'  // correlates with the server log entry
+}
+```
+
+### Validation errors (422)
+
+```typescript
+{
+  status: 'error',
+  code: 'UNPROCESSABLE_ENTITY',
+  message: 'Validation failed',
+  validation: [...],          // Fastify's raw validation error array
+  validationContext: 'body'   // which part of the request failed
+}
+```
+
+## Built-in error classes
+
+Import from `telaio/errors`.
+
+| Class | Status Code | Default `code` |
+|-------|------------|----------------|
+| `RequestError` | 500 | `ERROR` |
+| `BadRequestError` | 400 | `BAD_REQUEST` |
+| `UnauthorizedError` | 401 | `UNAUTHORIZED` |
+| `ForbiddenError` | 403 | `FORBIDDEN` |
+| `NotFoundError` | 404 | `NOT_FOUND` |
+| `PayloadTooLargeError` | 413 | `PAYLOAD_TOO_LARGE` |
+
+```typescript
+import {
+  BadRequestError,
+  NotFoundError,
+  UnauthorizedError,
+  ForbiddenError,
+} from 'telaio/errors';
+
+// In a route handler:
+const user = await db.selectFrom('users').where('id', '=', id).selectAll().executeTakeFirst();
+if (!user) {
+  throw new NotFoundError('User not found');
+}
+
+if (!req.hasAuthSession()) {
+  throw new UnauthorizedError();
+}
+
+if (user.role !== 'admin') {
+  throw new ForbiddenError('Admin access required');
+}
+```
+
+## ErrorCode enum
+
+```typescript
+import { ErrorCode } from 'telaio/errors';
+
+ErrorCode.ERROR                // 'ERROR'
+ErrorCode.BAD_REQUEST          // 'BAD_REQUEST'
+ErrorCode.UNPROCESSABLE_ENTITY // 'UNPROCESSABLE_ENTITY'
+ErrorCode.UNAUTHORIZED         // 'UNAUTHORIZED'
+ErrorCode.FORBIDDEN            // 'FORBIDDEN'
+ErrorCode.NOT_FOUND            // 'NOT_FOUND'
+ErrorCode.PAYLOAD_TOO_LARGE    // 'PAYLOAD_TOO_LARGE'
+```
+
+## RequestError base class
+
+All Telaio error classes extend `RequestError`. It implements:
+
+| Property / Method | Type | Description |
+|-------------------|------|-------------|
+| `code` | `string` | Machine-readable error identifier |
+| `status` | `string` | Always `'error'` |
+| `statusCode` | `number` | HTTP status code |
+| `toJSON()` | `object` | Returns `{ status, code, message }` |
+
+`RequestError` itself defaults to status code `500`. You can use it as a base for custom errors.
+
+## Kysely NoResultError
+
+If you use `.executeTakeFirstOrThrow()` in Kysely and no row is found, Kysely throws `NoResultError`. Telaio's error handler catches this automatically and returns a `404` response, so you do not need to wrap every `executeTakeFirstOrThrow()` call in a try/catch.
+
+```typescript
+// This automatically returns 404 if the user does not exist
+const user = await db
+  .selectFrom('users')
+  .where('id', '=', id)
+  .selectAll()
+  .executeTakeFirstOrThrow();
+```
+
+## Custom error classes
+
+Extend `RequestError` to define domain-specific errors.
+
+```typescript
+import { RequestError } from 'telaio/errors';
+
+export class ConflictError extends RequestError {
+  constructor(message = 'Resource already exists') {
+    super('CONFLICT', message);
+    this.statusCode = 409;
+  }
+}
+
+export class RateLimitError extends RequestError {
+  constructor(message = 'Too many requests') {
+    super('RATE_LIMITED', message);
+    this.statusCode = 429;
+  }
+}
+```
+
+Use them in route handlers exactly like the built-in errors:
+
+```typescript
+import { ConflictError } from '../errors/conflict.js';
+
+fastify.post('/users', async (req) => {
+  const existing = await db
+    .selectFrom('users')
+    .where('email', '=', req.body.email)
+    .selectAll()
+    .executeTakeFirst();
+
+  if (existing) {
+    throw new ConflictError('User with this email already exists');
+  }
+
+  // ...
+});
+```
+
+The response will be:
+
+```json
+{
+  "status": "error",
+  "code": "CONFLICT",
+  "message": "User with this email already exists"
+}
+```
+
+with HTTP status `409`.
+
+<Callout type="info">
+Custom error classes are automatically handled by the `RequestError` branch in the error handler. Any class that extends `RequestError` will have its `statusCode` and `toJSON()` result used directly -- no additional configuration is needed.
+</Callout>
