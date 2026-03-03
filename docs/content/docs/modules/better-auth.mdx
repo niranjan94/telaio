@@ -1,0 +1,147 @@
+---
+title: better-auth Integration
+description: First-class adapter for better-auth with organization support, session hooks, and React Email templates.
+---
+
+# better-auth Integration
+
+Telaio ships a first-class adapter for [better-auth](https://www.better-auth.com). It implements the `AuthAdapter<TSession>` interface and handles session resolution, route mounting, and optional organization-aware context.
+
+Import path: `telaio/auth/better-auth`
+
+## createBetterAuthAdapter()
+
+```typescript
+import { createBetterAuthAdapter } from 'telaio/auth/better-auth';
+
+const adapter = createBetterAuthAdapter({
+  auth,                           // your better-auth instance
+  organization: true,             // include org member context in sessions
+  basePath: '/auth',              // default
+  skipPaths: ['/auth/sign-out'],  // default
+  errorRedirectUrl: '/login',     // optional redirect on 401
+  onSession: async (session, headers) => {
+    // Enrich or transform the session after better-auth resolves it
+    // Return null to invalidate the session
+    return session;
+  },
+});
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `auth` | `BetterAuthLike` | -- | Your initialized better-auth instance |
+| `organization` | `boolean` | `false` | Resolve org member context into the session |
+| `basePath` | `string` | `/auth` | Mount path for better-auth's HTTP handler |
+| `skipPaths` | `string[]` | `['/auth/sign-out']` | Paths where session hydration is skipped |
+| `errorRedirectUrl` | `string` | -- | Redirect on auth failure |
+| `onSession` | `(session, headers) => Promise<TSession \| null>` | -- | Hook to enrich or invalidate sessions |
+
+## The chicken-and-egg problem
+
+better-auth requires a database connection during its own initialization. But under normal usage, Telaio creates the pool inside `.build()` -- which runs after better-auth needs to be initialized.
+
+Solve this by using the standalone factory functions to create the pool and database first, then pass the pre-built instances into both better-auth and the builder:
+
+```typescript
+import { createPool, createDatabase } from 'telaio/db';
+import { createBetterAuthAdapter } from 'telaio/auth/better-auth';
+import { betterAuth } from 'better-auth';
+import { createApp, loadConfig } from 'telaio';
+
+const config = loadConfig({ modules: { database: true } });
+
+// Step 1: Create pool independently
+const pool = await createPool(config);
+const db = await createDatabase<DB>(pool);
+
+// Step 2: Create better-auth instance using the same pool
+const auth = betterAuth({
+  database: { provider: 'pg', db: pool },
+  // ... other better-auth config
+});
+
+// Step 3: Create adapter
+const adapter = createBetterAuthAdapter({ auth, organization: true });
+
+// Step 4: Pass pre-created instances to builder
+const app = await createApp({ config })
+  .withDatabase({ pool, db })  // reuse -- don't create a second pool
+  .withAuth(adapter)
+  .build();
+```
+
+<Callout type="warn">
+Never pass the same pool to both better-auth and `.withDatabase()` without using pre-created instances. If you let the builder create its own pool, you will have two separate connection pools hitting the same database, and better-auth's pool will never be cleaned up on shutdown.
+</Callout>
+
+## Organization-aware sessions
+
+When `organization: true`, the adapter resolves the active organization for the request and merges the membership context into the session object. The session shape becomes:
+
+```typescript
+{
+  user: { id: string; email: string; /* ... */ },
+  session: { /* better-auth session fields */ },
+  organization: {
+    id: string;
+    name: string;
+    member: {
+      role: string;  // 'owner' | 'admin' | 'member' by default
+      // ...
+    };
+  } | null;
+}
+```
+
+Use `validateRole` in your adapter config to derive the Telaio guard role from `session.organization.member.role`:
+
+```typescript
+const adapter = createBetterAuthAdapter({
+  auth,
+  organization: true,
+  // AuthGuardTypes.role is inferred from the augmentation above
+});
+```
+
+## React Email templates
+
+Telaio ships opt-in React Email templates for the two most common transactional emails better-auth sends:
+
+```typescript
+import {
+  renderEmailVerificationReact,
+  renderMagicLinkReact,
+} from 'telaio/auth/better-auth';
+```
+
+These require two additional peer dependencies:
+
+```bash
+pnpm add @daveyplate/better-auth-ui @react-email/components
+```
+
+Use them inside better-auth's email hooks:
+
+```typescript
+const auth = betterAuth({
+  // ...
+  emailAndPassword: {
+    sendVerificationEmail: async ({ user, url }) => {
+      await sendReactEmail(
+        {
+          from: 'noreply@myapp.com',
+          to: user.email,
+          subject: 'Verify your email',
+          react: renderEmailVerificationReact({ url, appName: 'MyApp' }),
+        },
+        { region: 'us-east-1' },
+      );
+    },
+  },
+});
+```
+
+Both renderers return a React element compatible with `sendReactEmail` from `telaio/email`.

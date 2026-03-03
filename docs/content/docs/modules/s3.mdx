@@ -1,0 +1,116 @@
+---
+title: S3
+description: S3 client factory with support for IAM credential chains and S3-compatible services like MinIO.
+---
+
+# S3
+
+Telaio's S3 module wraps the AWS SDK v3 `S3Client` in a factory function that handles credential configuration. It supports both AWS S3 and any S3-compatible service (MinIO, Cloudflare R2, etc.) through the `endpoint` option.
+
+## Peer dependency
+
+```bash
+pnpm add @aws-sdk/client-s3
+```
+
+`@aws-sdk/client-s3` is an optional peer dependency. Install it only if your app uses object storage.
+
+## createS3Client()
+
+```typescript
+import { createS3Client } from 'telaio/s3';
+
+// Production: let the SDK resolve credentials automatically (IAM role, env vars, etc.)
+const s3 = await createS3Client({ region: 'us-east-1' });
+
+// Explicit credentials (not recommended for production)
+const s3 = await createS3Client({
+  region: 'us-east-1',
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+});
+```
+
+### S3ClientConfig
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `region` | `string` | AWS region (e.g. `us-east-1`) |
+| `endpoint` | `string` | Override endpoint URL for S3-compatible services |
+| `accessKeyId` | `string` | Explicit access key (omit to use default credential chain) |
+| `secretAccessKey` | `string` | Explicit secret key (omit to use default credential chain) |
+
+When `accessKeyId` and `secretAccessKey` are omitted, the SDK uses the default provider chain: environment variables, shared credentials file, ECS task role, or EC2/EKS instance profile -- in that order.
+
+## AWS credential chain
+
+For production deployments on AWS, attach an IAM role to your compute resource (ECS task, EC2 instance, Lambda function, or EKS service account) and do not set explicit credentials. The SDK picks up the role automatically.
+
+```bash
+# Local development via environment variables
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=us-east-1
+```
+
+## MinIO (local development)
+
+Use the `endpoint` option to point `createS3Client` at a local MinIO instance:
+
+```typescript
+// Local dev with MinIO
+const s3 = await createS3Client({
+  region: 'us-east-1',   // required by the SDK even for non-AWS endpoints
+  endpoint: 'http://localhost:9000',
+  accessKeyId: 'minioadmin',
+  secretAccessKey: 'minioadmin',
+});
+```
+
+MinIO is API-compatible with S3. All standard SDK commands work without modification.
+
+## Using the client
+
+`createS3Client` returns a standard `S3Client` from `@aws-sdk/client-s3`. Use it with any SDK command:
+
+```typescript
+import { createS3Client } from 'telaio/s3';
+import {
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+
+const s3 = await createS3Client({ region: 'us-east-1' });
+
+// Upload a file
+await s3.send(new PutObjectCommand({
+  Bucket: 'my-bucket',
+  Key: 'uploads/file.pdf',
+  Body: fileBuffer,
+  ContentType: 'application/pdf',
+}));
+
+// Generate a presigned download URL (15 minutes)
+const url = await getSignedUrl(
+  s3,
+  new GetObjectCommand({ Bucket: 'my-bucket', Key: 'uploads/file.pdf' }),
+  { expiresIn: 900 },
+);
+
+// Delete
+await s3.send(new DeleteObjectCommand({
+  Bucket: 'my-bucket',
+  Key: 'uploads/file.pdf',
+}));
+```
+
+## Environment variables (recommended)
+
+```bash
+AWS_REGION=us-east-1
+S3_BUCKET=my-bucket
+```
+
+Read these in your app config and pass them to `createS3Client` rather than hardcoding them.

@@ -1,0 +1,100 @@
+---
+title: Email
+description: Send transactional email via AWS SES using React Email components.
+---
+
+# Email
+
+Telaio's email module sends transactional email via AWS SES using [React Email](https://react.email) components for template rendering.
+
+## Peer dependencies
+
+```bash
+pnpm add @aws-sdk/client-ses @react-email/components
+```
+
+Both are optional peer dependencies. They are not installed automatically -- add them only if your app sends email.
+
+## sendReactEmail()
+
+```typescript
+import { sendReactEmail } from 'telaio/email';
+import { WelcomeEmail } from './emails/WelcomeEmail.js';
+
+await sendReactEmail(
+  {
+    from: 'noreply@myapp.com',
+    to: user.email,
+    subject: 'Welcome to MyApp!',
+    react: <WelcomeEmail name={user.name} />,
+  },
+  { region: 'us-east-1' },
+);
+```
+
+### EmailSendOptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `from` | `string` | Sender address (must be verified in SES) |
+| `to` | `string` | Recipient address |
+| `subject` | `string` | Email subject line |
+| `react` | `React.ReactElement` | Template component to render as HTML |
+
+### EmailConfig
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `region` | `string` | AWS SES region (e.g. `us-east-1`) |
+
+## AWS credentials
+
+`sendReactEmail` does not accept explicit credentials. The AWS SDK resolves credentials through the default provider chain in order:
+
+1. `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` environment variables
+2. Shared credentials file (`~/.aws/credentials`)
+3. ECS task role or EC2/EKS instance profile (IAM role)
+
+For local development, set the environment variables. In production, use an IAM role attached to your compute resource.
+
+## Recommended environment variables
+
+```bash
+AWS_SES_REGION=us-east-1
+EMAIL_FROM=noreply@myapp.com
+```
+
+## Writing templates
+
+Templates are standard React components. Use `@react-email/components` for cross-client-compatible primitives:
+
+```tsx
+// src/emails/WelcomeEmail.tsx
+import { Html, Head, Body, Container, Text, Button } from '@react-email/components';
+
+interface WelcomeEmailProps {
+  name: string;
+}
+
+export function WelcomeEmail({ name }: WelcomeEmailProps) {
+  return (
+    <Html>
+      <Head />
+      <Body>
+        <Container>
+          <Text>Hi {name}, welcome to MyApp!</Text>
+          <Button href="https://myapp.com/dashboard">
+            Get started
+          </Button>
+        </Container>
+      </Body>
+    </Html>
+  );
+}
+```
+
+`sendReactEmail` renders the component to HTML using `@react-email/components`'s renderer before handing it to SES.
+
+## better-auth templates
+
+If you are using better-auth, Telaio provides pre-built templates for verification and magic link emails. See the [better-auth integration](/docs/modules/better-auth) page for details.

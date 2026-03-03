@@ -1,0 +1,118 @@
+---
+title: Logger
+description: Pino logger factory with auto-serializers, pino-pretty support, and child loggers for module-scoped context.
+---
+
+# Logger
+
+Telaio's logger module wraps [Pino](https://getpino.io) with sensible defaults: auto-serializers for error objects, automatic pino-pretty detection in development, and a consistent interface for child loggers.
+
+## createLogger()
+
+```typescript
+import { createLogger } from 'telaio/logger';
+
+const logger = createLogger();
+
+// With explicit options
+const logger = createLogger({
+  level: 'debug',
+  pretty: true,
+});
+```
+
+### LoggerOptions
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `level` | `string` | `'info'` | Minimum log level (`trace`, `debug`, `info`, `warn`, `error`, `fatal`) |
+| `pretty` | `boolean` | `true` | Enable pino-pretty formatted output if available |
+| `transport` | `TransportSingleOptions` | -- | Custom Pino transport configuration |
+
+## pino-pretty
+
+When `pretty` is not explicitly set to `false`, Telaio attempts to load `pino-pretty`. If it is not installed, the logger falls back to standard JSON output without throwing.
+
+Install pino-pretty as a dev dependency for local development:
+
+```bash
+pnpm add -D pino-pretty
+```
+
+In production, JSON output (pretty: false or pino-pretty not installed) is the right choice for structured log aggregation.
+
+## Auto-serializers
+
+Error objects are serialized automatically for the `err`, `error`, and `e` fields. You do not need to manually convert errors to plain objects:
+
+```typescript
+// All three produce a serialized error with message, stack, and type
+logger.error({ err: new Error('connection refused') }, 'Database error');
+logger.error({ error: new Error('timeout') }, 'Request failed');
+logger.error({ e: validationError }, 'Invalid input');
+```
+
+The serializer extracts `message`, `stack`, `name`, `code`, and any enumerable properties from the error.
+
+## Child loggers
+
+Create a child logger with persistent context fields for a module or component:
+
+```typescript
+import { createLogger } from 'telaio/logger';
+
+const logger = createLogger({ level: 'info' });
+
+// Module-scoped child logger
+const dbLogger = logger.child({ module: 'database' });
+dbLogger.info({ rows: 10 }, 'Query completed');
+// Output: { "module": "database", "rows": 10, "msg": "Query completed", ... }
+
+const queueLogger = logger.child({ module: 'queue', queue: 'send-welcome-email' });
+queueLogger.warn({ jobId: 'job_123' }, 'Job retrying');
+```
+
+Every log line from `dbLogger` will include `"module": "database"` without repeating it at each call site.
+
+## Request logging in routes
+
+The Fastify integration automatically provides `req.log` as a child logger bound to the current request's context (request ID, method, URL). Use it inside route handlers instead of the top-level logger:
+
+```typescript
+fastify.get('/users/:id', async (req) => {
+  req.log.info({ userId: req.params.id }, 'Fetching user');
+  const user = await db.selectFrom('users').where('id', '=', req.params.id).executeTakeFirst();
+  if (!user) {
+    req.log.warn({ userId: req.params.id }, 'User not found');
+    throw new NotFoundError('User not found');
+  }
+  return user;
+});
+```
+
+`req.log` inherits the request ID automatically, making it straightforward to trace a single request through distributed logs.
+
+## Full example
+
+```typescript
+import { createLogger } from 'telaio/logger';
+
+const logger = createLogger({ level: 'info' });
+
+// Module-scoped child logger
+const dbLogger = logger.child({ module: 'database' });
+dbLogger.info({ rows: 10 }, 'Query completed');
+
+// Error serialization works automatically
+logger.error({ err: new Error('oops') }, 'Something failed');
+```
+
+## Passing logger to factories
+
+The standalone factory functions (`createPool`, `createDatabase`, `createCache`, `createQueueProducer`) accept an optional `logger` argument. Pass your app logger to get consistent structured output across all subsystems:
+
+```typescript
+const logger = createLogger();
+const pool = await createPool(config, logger);
+const cache = createCache(config, logger);
+```
