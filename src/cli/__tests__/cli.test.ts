@@ -90,34 +90,28 @@ describe('telaio init', () => {
 
     await program.parseAsync(['node', 'test', 'init', tmpDir]);
 
-    // Check key files were created
-    const telaioConfigStat = await fs.stat(
-      path.join(tmpDir, 'src/telaio.config.ts'),
-    );
-    expect(telaioConfigStat.isFile()).toBe(true);
+    const expectedFiles = [
+      'src/telaio.config.ts',
+      'src/config.ts',
+      'src/app.ts',
+      'src/server.ts',
+      'src/logger.ts',
+      'src/auth/client.ts',
+      'src/auth/adapter.ts',
+      'src/db/client.ts',
+      'src/db/migrations/.gitkeep',
+      'src/routes/v1/ping/actions.ts',
+      'src/schemas/ping.ts',
+      'src/services/.gitkeep',
+      'tsconfig.json',
+      'biome.json',
+      '.env',
+    ];
 
-    const configStat = await fs.stat(path.join(tmpDir, 'src/config.ts'));
-    expect(configStat.isFile()).toBe(true);
-
-    const appStat = await fs.stat(path.join(tmpDir, 'src/app.ts'));
-    expect(appStat.isFile()).toBe(true);
-
-    const serverStat = await fs.stat(path.join(tmpDir, 'src/server.ts'));
-    expect(serverStat.isFile()).toBe(true);
-
-    const routeStat = await fs.stat(
-      path.join(tmpDir, 'src/routes/v1/ping/actions.ts'),
-    );
-    expect(routeStat.isFile()).toBe(true);
-
-    const tsconfigStat = await fs.stat(path.join(tmpDir, 'tsconfig.json'));
-    expect(tsconfigStat.isFile()).toBe(true);
-
-    const biomeStat = await fs.stat(path.join(tmpDir, 'biome.json'));
-    expect(biomeStat.isFile()).toBe(true);
-
-    const envStat = await fs.stat(path.join(tmpDir, '.env'));
-    expect(envStat.isFile()).toBe(true);
+    for (const file of expectedFiles) {
+      const stat = await fs.stat(path.join(tmpDir, file));
+      expect(stat.isFile(), `${file} should exist`).toBe(true);
+    }
   });
 
   it('does not overwrite existing files', async () => {
@@ -141,6 +135,15 @@ describe('telaio init', () => {
       'utf-8',
     );
     expect(content).toBe('custom content');
+  });
+
+  it('templates directory is resolvable from source', async () => {
+    const templatesDir = path.resolve(
+      import.meta.dirname,
+      '../../../templates',
+    );
+    const stat = await fs.stat(templatesDir);
+    expect(stat.isDirectory()).toBe(true);
   });
 });
 

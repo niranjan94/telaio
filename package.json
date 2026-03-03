@@ -5,7 +5,8 @@
   "type": "module",
   "files": [
     "dist",
-    "tsconfigs"
+    "tsconfigs",
+    "templates"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
