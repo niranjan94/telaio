@@ -25,7 +25,7 @@ describe('loadConfig', () => {
 
   it('includes server config when server flag is set', () => {
     const config = loadConfig({
-      flags: { server: true },
+      modules: { server: true },
       skipEnvLoad: true,
       source: {},
     });
@@ -37,7 +37,7 @@ describe('loadConfig', () => {
 
   it('includes database config when database flag is set', () => {
     const config = loadConfig({
-      flags: { database: true },
+      modules: { database: true },
       skipEnvLoad: true,
       source: {},
     });
@@ -46,7 +46,7 @@ describe('loadConfig', () => {
 
   it('includes cache config when cache flag is set', () => {
     const config = loadConfig({
-      flags: { cache: true },
+      modules: { cache: true },
       skipEnvLoad: true,
       source: {},
     });
@@ -55,7 +55,7 @@ describe('loadConfig', () => {
 
   it('includes queue config when queue flag is set', () => {
     const config = loadConfig({
-      flags: { queue: true },
+      modules: { queue: true },
       skipEnvLoad: true,
       source: {},
     });
@@ -64,7 +64,7 @@ describe('loadConfig', () => {
 
   it('includes s3 config when s3 flag is set', () => {
     const config = loadConfig({
-      flags: { s3: true },
+      modules: { s3: true },
       skipEnvLoad: true,
       source: {},
     });
@@ -73,7 +73,7 @@ describe('loadConfig', () => {
 
   it('includes email config when email flag is set', () => {
     const config = loadConfig({
-      flags: { email: true },
+      modules: { email: true },
       skipEnvLoad: true,
       source: {},
     });
@@ -93,7 +93,7 @@ describe('loadConfig', () => {
 
   it('composes multiple modules with extension', () => {
     const config = loadConfig({
-      flags: { database: true, cache: true },
+      modules: { database: true, cache: true },
       extend: z.object({
         MY_SECRET: z.string(),
       }),
@@ -111,7 +111,7 @@ describe('loadConfig', () => {
 
   it('parses CORS_ORIGINS as CSV', () => {
     const config = loadConfig({
-      flags: { server: true },
+      modules: { server: true },
       skipEnvLoad: true,
       source: { CORS_ORIGINS: 'https://a.com,https://b.com' },
     });
@@ -120,7 +120,7 @@ describe('loadConfig', () => {
 
   it('handles empty CORS_ORIGINS', () => {
     const config = loadConfig({
-      flags: { server: true },
+      modules: { server: true },
       skipEnvLoad: true,
       source: { CORS_ORIGINS: '' },
     });
@@ -142,23 +142,23 @@ describe('loadConfig', () => {
 
 describe('defineConfig', () => {
   it('brands the options with the telaio config symbol', () => {
-    const result = defineConfig({ flags: { database: true } });
+    const result = defineConfig({ modules: { database: true } });
     expect(isDefineConfigResult(result)).toBe(true);
   });
 
-  it('preserves flags and extend options', () => {
+  it('preserves modules and extend options', () => {
     const extend = z.object({ CUSTOM: z.string() });
     const result = defineConfig({
-      flags: { database: true, cache: true },
+      modules: { database: true, cache: true },
       extend,
     });
-    expect(result.flags).toEqual({ database: true, cache: true });
+    expect(result.modules).toEqual({ database: true, cache: true });
     expect(result.extend).toBe(extend);
   });
 
   it('omits skipEnvLoad and source from the type', () => {
     // These should not be settable via defineConfig
-    const result = defineConfig({ flags: { server: true } });
+    const result = defineConfig({ modules: { server: true } });
     expect(result).not.toHaveProperty('skipEnvLoad');
     expect(result).not.toHaveProperty('source');
   });
@@ -175,7 +175,7 @@ describe('isDefineConfigResult', () => {
   });
 
   it('returns false for plain objects', () => {
-    expect(isDefineConfigResult({ flags: { database: true } })).toBe(false);
+    expect(isDefineConfigResult({ modules: { database: true } })).toBe(false);
   });
 
   it('returns false for null', () => {

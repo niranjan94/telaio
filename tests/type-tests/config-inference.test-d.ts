@@ -51,13 +51,13 @@ describe('config inference', () => {
   });
 
   it('loadConfig with database flag returns type with DATABASE_URL', () => {
-    const result = loadConfig({ flags: { database: true } });
+    const result = loadConfig({ modules: { database: true } });
     expectTypeOf(result).toHaveProperty('APP_NAME');
     expectTypeOf(result).toHaveProperty('DATABASE_URL');
   });
 
   it('loadConfig with server flag returns type with API_URL', () => {
-    const result = loadConfig({ flags: { server: true } });
+    const result = loadConfig({ modules: { server: true } });
     expectTypeOf(result).toHaveProperty('APP_NAME');
     expectTypeOf(result).toHaveProperty('API_URL');
     expectTypeOf(result).toHaveProperty('API_LISTEN_PORT');
@@ -65,7 +65,7 @@ describe('config inference', () => {
 
   it('loadConfig with multiple flags merges all config fields', () => {
     const result = loadConfig({
-      flags: { server: true, database: true, cache: true },
+      modules: { server: true, database: true, cache: true },
     });
     expectTypeOf(result).toHaveProperty('APP_NAME');
     expectTypeOf(result).toHaveProperty('API_URL');
@@ -74,7 +74,7 @@ describe('config inference', () => {
   });
 
   it('loadConfig without database flag does not have DATABASE_URL', () => {
-    const result = loadConfig({ flags: { server: true } });
+    const result = loadConfig({ modules: { server: true } });
     // SERVER fields present
     expectTypeOf(result).toHaveProperty('API_URL');
     // DATABASE fields absent — DATABASE_URL should not be a known key
