@@ -31,6 +31,10 @@
       "types": "./dist/auth/index.d.ts",
       "import": "./dist/auth/index.js"
     },
+    "./auth/better-auth": {
+      "types": "./dist/auth/better-auth/index.d.ts",
+      "import": "./dist/auth/better-auth/index.js"
+    },
     "./schema": {
       "types": "./dist/schema/index.d.ts",
       "import": "./dist/schema/index.js"
@@ -137,9 +141,13 @@
     "redis": "^5.0.0",
     "tsx": ">=4.0.0",
     "@parcel/watcher": "^2.0.0",
+    "better-auth": ">=1.0.0",
     "concurrently": "^9.0.0"
   },
   "peerDependenciesMeta": {
+    "better-auth": {
+      "optional": true
+    },
     "@aws-sdk/client-s3": {
       "optional": true
     },
@@ -214,6 +222,7 @@
     }
   },
   "devDependencies": {
+    "better-auth": "^1.5.0",
     "@biomejs/biome": "^2.4.4",
     "@parcel/watcher": "^2.5.6",
     "@testcontainers/postgresql": "^11.12.0",
