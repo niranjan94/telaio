@@ -1,0 +1,200 @@
+---
+title: Errors API Reference
+description: Complete reference for Telaio's typed HTTP error classes, ErrorCode enum, and error response format.
+---
+
+# Errors API Reference
+
+Import path: `telaio/errors`
+
+Telaio provides a hierarchy of typed HTTP error classes that map to standard status codes and produce consistent JSON error responses. Throwing any of these from a route handler causes Fastify to return the correct status code automatically.
+
+---
+
+## Error response format
+
+All error classes serialize to this JSON shape:
+
+```json
+{
+  "status": "error",
+  "code": "NOT_FOUND",
+  "message": "User not found"
+}
+```
+
+| Field | Type | Value |
+|-------|------|-------|
+| `status` | `string` | Always `"error"` |
+| `code` | `string` | One of the `ErrorCode` enum values |
+| `message` | `string` | Human-readable error description |
+
+---
+
+## ErrorCode enum
+
+```typescript
+import { ErrorCode } from 'telaio/errors';
+
+enum ErrorCode {
+  ERROR = 'ERROR',
+  BAD_REQUEST = 'BAD_REQUEST',
+  UNPROCESSABLE_ENTITY = 'UNPROCESSABLE_ENTITY',
+  UNAUTHORIZED = 'UNAUTHORIZED',
+  FORBIDDEN = 'FORBIDDEN',
+  NOT_FOUND = 'NOT_FOUND',
+  PAYLOAD_TOO_LARGE = 'PAYLOAD_TOO_LARGE',
+}
+```
+
+| Value | Description |
+|-------|-------------|
+| `ERROR` | Generic server error; used by the base `RequestError` class |
+| `BAD_REQUEST` | The request body or parameters failed validation |
+| `UNPROCESSABLE_ENTITY` | The request was well-formed but semantically invalid |
+| `UNAUTHORIZED` | No valid authentication credentials were provided |
+| `FORBIDDEN` | Valid credentials were provided but access is denied |
+| `NOT_FOUND` | The requested resource does not exist |
+| `PAYLOAD_TOO_LARGE` | The request body exceeds the configured size limit |
+
+---
+
+## RequestError (base class)
+
+All Telaio error classes extend `RequestError`. You can catch `RequestError` to handle any typed HTTP error uniformly.
+
+```typescript
+import { RequestError } from 'telaio/errors';
+
+class RequestError extends Error {
+  code: string;
+  status: 'error';
+  statusCode: number;
+  constructor(code?: string, message?: string);
+  toJSON(): { status: string; code: string; message: string };
+}
+```
+
+### Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `code` | `string` | `'ERROR'` | Machine-readable error code |
+| `status` | `'error'` | `'error'` | Always the string `"error"` |
+| `statusCode` | `number` | `500` | HTTP status code |
+
+### Methods
+
+#### toJSON()
+
+Returns the plain object representation used for JSON serialization:
+
+```typescript
+const err = new RequestError('CUSTOM_CODE', 'Something went wrong');
+err.toJSON();
+// { status: 'error', code: 'CUSTOM_CODE', message: 'Something went wrong' }
+```
+
+---
+
+## Error subclasses
+
+| Class | Status | Default Message | Code |
+|-------|--------|-----------------|------|
+| `RequestError` | 500 | 'An error occurred' | `ERROR` |
+| `BadRequestError` | 400 | 'Invalid data in request' | `BAD_REQUEST` |
+| `UnauthorizedError` | 401 | 'Unauthorized' | `UNAUTHORIZED` |
+| `ForbiddenError` | 403 | 'Forbidden' | `FORBIDDEN` |
+| `NotFoundError` | 404 | 'Not Found' | `NOT_FOUND` |
+| `PayloadTooLargeError` | 413 | 'Payload too large' | `PAYLOAD_TOO_LARGE` |
+
+### Usage
+
+All subclasses accept an optional custom message:
+
+```typescript
+import {
+  BadRequestError,
+  NotFoundError,
+  UnauthorizedError,
+  ForbiddenError,
+  PayloadTooLargeError,
+} from 'telaio/errors';
+
+// Default message
+throw new NotFoundError();
+// { status: 'error', code: 'NOT_FOUND', message: 'Not Found' }
+
+// Custom message
+throw new NotFoundError('User not found');
+// { status: 'error', code: 'NOT_FOUND', message: 'User not found' }
+
+// In a route handler
+fastify.get('/users/:id', async (req) => {
+  const user = await db.selectFrom('users')
+    .where('id', '=', req.params.id)
+    .executeTakeFirst();
+
+  if (!user) {
+    throw new NotFoundError(`User ${req.params.id} not found`);
+  }
+
+  return user;
+});
+```
+
+---
+
+## Custom error classes
+
+Extend `RequestError` to define application-specific error types with custom codes and status codes:
+
+```typescript
+import { RequestError } from 'telaio/errors';
+
+class ConflictError extends RequestError {
+  statusCode = 409;
+
+  constructor(message = 'Resource already exists') {
+    super('CONFLICT', message);
+  }
+}
+
+class RateLimitError extends RequestError {
+  statusCode = 429;
+
+  constructor(message = 'Too many requests') {
+    super('RATE_LIMITED', message);
+  }
+}
+```
+
+Custom error classes serialize through the same `toJSON()` mechanism and are handled uniformly by Fastify's error handler. The `statusCode` property is used to set the HTTP response status.
+
+### Custom error with extra fields
+
+If you need to include additional data in the error response, override `toJSON()`:
+
+```typescript
+import { RequestError } from 'telaio/errors';
+
+class ValidationError extends RequestError {
+  statusCode = 422;
+  readonly fields: Record<string, string>;
+
+  constructor(fields: Record<string, string>) {
+    super('VALIDATION_ERROR', 'Validation failed');
+    this.fields = fields;
+  }
+
+  toJSON() {
+    return {
+      ...super.toJSON(),
+      fields: this.fields,
+    };
+  }
+}
+
+throw new ValidationError({ email: 'must be a valid email address' });
+// { status: 'error', code: 'VALIDATION_ERROR', message: 'Validation failed', fields: { email: '...' } }
+```

@@ -1,0 +1,100 @@
+---
+title: S3 API Reference
+description: Complete reference for createS3Client and S3ClientConfig, including S3-compatible endpoint support.
+---
+
+# S3 API Reference
+
+Import path: `telaio/s3`
+
+Telaio's S3 module wraps the AWS SDK v3 `S3Client` in a factory function that handles credential configuration. It supports both AWS S3 and any S3-compatible service (MinIO, Cloudflare R2, etc.) via the `endpoint` option.
+
+---
+
+## Peer dependency
+
+```bash
+pnpm add @aws-sdk/client-s3
+```
+
+`@aws-sdk/client-s3` is an optional peer dependency. Install it only when your application uses object storage.
+
+---
+
+## createS3Client(clientConfig)
+
+Creates and returns a configured `S3Client` instance from `@aws-sdk/client-s3`.
+
+### Signature
+
+```typescript
+async function createS3Client(clientConfig: S3ClientConfig): Promise<S3Client>
+```
+
+The returned value is a standard `S3Client` from `@aws-sdk/client-s3`. Use it with any AWS SDK v3 S3 command.
+
+```typescript
+import { createS3Client } from 'telaio/s3';
+
+// Production: let the SDK resolve credentials automatically via IAM role or env vars
+const s3 = await createS3Client({ region: 'us-east-1' });
+
+// Explicit credentials (use only for local development)
+const s3 = await createS3Client({
+  region: 'us-east-1',
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+});
+
+// S3-compatible endpoint (e.g. MinIO)
+const s3 = await createS3Client({
+  region: 'us-east-1',
+  endpoint: 'http://localhost:9000',
+  accessKeyId: 'minioadmin',
+  secretAccessKey: 'minioadmin',
+});
+```
+
+---
+
+## S3ClientConfig
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `region` | `string` | Yes | AWS region (e.g. `us-east-1`). Required by the SDK even when using a non-AWS endpoint |
+| `endpoint` | `string` | No | Override endpoint URL for S3-compatible services (MinIO, Cloudflare R2, etc.) |
+| `accessKeyId` | `string` | No | Explicit access key ID. Omit to use the default SDK credential chain |
+| `secretAccessKey` | `string` | No | Explicit secret access key. Omit to use the default SDK credential chain |
+
+---
+
+## AWS credential chain
+
+When `accessKeyId` and `secretAccessKey` are omitted, the SDK uses the default provider chain in order:
+
+1. `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` environment variables
+2. Shared credentials file (`~/.aws/credentials`)
+3. ECS task role, EC2 instance profile, or EKS service account (IAM role)
+
+For production deployments on AWS, attach an IAM role to your compute resource and do not set explicit credentials. The SDK picks up the role automatically.
+
+```bash
+# Local development via environment variables
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
+AWS_REGION=us-east-1
+```
+
+---
+
+## S3-compatible endpoints
+
+The `endpoint` option allows `createS3Client` to connect to any service that implements the S3 API. All standard AWS SDK v3 commands work against compatible services without modification.
+
+| Service | Example endpoint |
+|---------|-----------------|
+| MinIO (local) | `http://localhost:9000` |
+| Cloudflare R2 | `https://<account-id>.r2.cloudflarestorage.com` |
+| DigitalOcean Spaces | `https://<region>.digitaloceanspaces.com` |
+
+The `region` field is required by the SDK even when targeting a non-AWS endpoint. For MinIO and similar services, any valid region string (e.g. `us-east-1`) is accepted.

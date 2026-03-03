@@ -1,0 +1,269 @@
+---
+title: Server API Reference
+description: Complete reference for registerPlugins, registerHooks, registerSwagger, registerScalar, and all request decorators.
+---
+
+# Server API Reference
+
+The server module provides low-level registration functions used internally by the Telaio builder. You may call these directly when composing a Fastify application manually without the builder.
+
+---
+
+## registerPlugins(server, pluginOptions, options)
+
+Registers the set of optional Fastify plugins. Each plugin is guarded by a dynamic `import()`: if the peer dependency is not installed, the plugin is silently skipped.
+
+```typescript
+import { registerPlugins } from 'telaio/server';
+
+await registerPlugins(server, pluginOptions, {
+  logger,
+  baseDir: '/app',
+  skipAutoload: false,
+});
+```
+
+### Signature
+
+```typescript
+async function registerPlugins(
+  server: FastifyInstance,
+  pluginOptions: PluginOptions,
+  options: {
+    logger: Logger;
+    baseDir: string;
+    skipAutoload?: boolean;
+  }
+): Promise<void>
+```
+
+### PluginOptions
+
+Pass `true` to enable a plugin with all defaults, or an object to override specific fields. All keys are optional.
+
+| Option | Type | Peer Dependency | Description |
+|--------|------|----------------|-------------|
+| `cors` | `CorsOptions \| boolean` | `@fastify/cors` | CORS headers |
+| `helmet` | `HelmetOptions \| boolean` | `@fastify/helmet` | Security headers |
+| `cookie` | `CookieOptions \| boolean` | `@fastify/cookie` | Cookie parsing and signing |
+| `compress` | `CompressOptions \| boolean` | `@fastify/compress` | Response compression (gzip/brotli) |
+| `multipart` | `MultipartOptions \| boolean` | `@fastify/multipart` | Multipart form data handling |
+| `websocket` | `WebsocketOptions \| boolean` | `@fastify/websocket` | WebSocket upgrade support |
+| `sse` | `boolean` | `fastify-sse-v2` | Server-Sent Events support |
+| `autoload` | `AutoloadOptions \| false` | `@fastify/autoload` | Route auto-discovery from directory |
+
+Plugins are registered in fixed order regardless of how they appear in the options object:
+
+SSE -> Cookie -> WebSocket -> Compress -> CORS -> Helmet -> Multipart -> Autoload
+
+### CorsOptions
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `credentials` | `boolean` | `true` | Allow cookies and `Authorization` headers in cross-origin requests |
+| `allowedHeaders` | `string[]` | -- | Restrict which request headers are permitted |
+| `maxAge` | `number` | `86400` | Preflight cache TTL in seconds |
+| `origins` | `string[]` | -- | Allowed origins; omit to reflect the request origin |
+| `methods` | `string[]` | `GET POST PUT PATCH DELETE OPTIONS` | Allowed HTTP methods |
+
+### HelmetOptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enableCSPNonces` | `boolean` | Attach a CSP nonce to every request |
+| `contentSecurityPolicy` | `boolean \| { directives?: Record<string, string[]> }` | Raw CSP directives to merge with Telaio's defaults; set to `false` to disable CSP entirely |
+
+### CookieOptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `secret` | `string` | Secret used to sign cookies; omit for unsigned cookies |
+
+### CompressOptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `global` | `boolean` | Compress all responses globally; defaults to per-route opt-in |
+
+### MultipartOptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `limits.fieldNameSize` | `number` | Max field name length in bytes |
+| `limits.fieldSize` | `number` | Max field value size in bytes |
+| `limits.fields` | `number` | Max number of non-file fields |
+| `limits.fileSize` | `number` | Max file size in bytes (default 10 MB) |
+| `limits.files` | `number` | Max number of files per request (default 1) |
+
+### WebsocketOptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `options` | `Record<string, unknown>` | Passthrough options for `@fastify/websocket` |
+
+### AutoloadOptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `dir` | `string` | Directory to scan for route files; defaults to `src/routes` |
+| `routeParams` | `boolean` | Enable directory-based route parameters (e.g. `[id]`) |
+| `autoHooks` | `boolean` | Automatically load hook files alongside routes |
+| `cascadeHooks` | `boolean` | Apply parent directory hooks to nested routes |
+
+---
+
+## registerAutoload(server, pluginOptions, options)
+
+Registers only the autoload plugin. Used internally when autoload needs to run after other setup has completed.
+
+```typescript
+async function registerAutoload(
+  server: FastifyInstance,
+  pluginOptions: PluginOptions,
+  options: {
+    logger: Logger;
+    baseDir: string;
+  }
+): Promise<void>
+```
+
+---
+
+## registerHooks(server, options)
+
+Registers Fastify lifecycle hooks: request timing, auth session decoration, temp file management, and `onReady`/`onClose` callbacks.
+
+```typescript
+import { registerHooks } from 'telaio/server';
+
+await registerHooks(server, {
+  logger,
+  tempFiles: true,
+  onReady: async () => {
+    logger.info('Server ready');
+  },
+  onClose: async () => {
+    await pool.end();
+  },
+});
+```
+
+### Signature
+
+```typescript
+async function registerHooks(
+  server: FastifyInstance,
+  options: {
+    logger: Logger;
+    tempFiles?: boolean;
+    onReady?: () => Promise<void>;
+    onClose?: () => Promise<void>;
+  }
+): Promise<void>
+```
+
+### Options
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `logger` | `Logger` | Pino logger instance |
+| `tempFiles` | `boolean` | Enable temp file management decorators on every request |
+| `onReady` | `() => Promise<void>` | Callback invoked when the server finishes startup |
+| `onClose` | `() => Promise<void>` | Callback invoked when the server begins shutdown |
+
+---
+
+## Request decorators
+
+`registerHooks` adds these decorators to every Fastify request. Auth decorators are added by `buildAuthPlugin` when an auth adapter is registered.
+
+| Decorator | Type | Requires | Description |
+|-----------|------|----------|-------------|
+| `req.startTime` | `number \| undefined` | Always | Request start timestamp (Unix ms) |
+| `req.maybeAuthSession` | `TSession \| null` | Auth adapter | Session if authenticated, `null` otherwise |
+| `req.getAuthSession()` | `TSession` | Auth adapter | Returns session or throws `UnauthorizedError` (401) |
+| `req.hasAuthSession()` | `boolean` | Auth adapter | `true` if a session is present |
+| `req.tempFiles` | `string[]` | `tempFiles: true` | Paths of temp files registered for this request |
+| `req.addTempFile(path)` | `void` | `tempFiles: true` | Register a file path for automatic cleanup after response |
+| `req.getTempFile(opts?)` | `string` | `tempFiles: true` | Generate and register a unique temp file path; accepts `{ extension?: string }` |
+
+All temp files registered via `req.addTempFile` or `req.getTempFile` are deleted automatically after the response is sent, including on error paths.
+
+---
+
+## registerSwagger(server, options)
+
+Registers OpenAPI 3.1 spec generation via `@fastify/swagger`.
+
+```typescript
+import { registerSwagger } from 'telaio/server';
+
+await registerSwagger(server, {
+  info: {
+    title: 'My API',
+    version: '1.0.0',
+    description: 'REST API for the My App platform',
+  },
+});
+```
+
+### Signature
+
+```typescript
+async function registerSwagger(
+  server: FastifyInstance,
+  options: SwaggerOptions
+): Promise<void>
+```
+
+### SwaggerOptions
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `info.title` | `string` | Yes | API title shown in the spec and UI |
+| `info.version` | `string` | No | API version string (e.g. `1.0.0`) |
+| `info.description` | `string` | No | API description; supports Markdown |
+
+Additional standard OpenAPI fields can be passed alongside `info` and are forwarded to `@fastify/swagger`.
+
+Schema `$id` values become `$ref` component names in the generated spec. A schema registered with `$id: 'User'` appears as `#/components/schemas/User` in every route that references it via `AutoRef`.
+
+---
+
+## registerScalar(server, options?)
+
+Mounts the Scalar interactive API reference UI. Requires `registerSwagger` to be called first.
+
+```typescript
+import { registerScalar } from 'telaio/server';
+
+registerScalar(server, {
+  // Passthrough options for @scalar/fastify-api-reference
+});
+```
+
+### Signature
+
+```typescript
+function registerScalar(
+  server: FastifyInstance,
+  options?: ScalarOptions
+): void
+```
+
+### URLs
+
+| URL | Contents |
+|-----|----------|
+| `/docs` | Scalar interactive API explorer UI |
+| `/docs/json` | Raw OpenAPI JSON spec |
+
+`ScalarOptions` are passed through to `@scalar/fastify-api-reference`. Any valid Scalar configuration option can be provided.
+
+---
+
+## registerSchemas and registerBuiltinSchemas
+
+These functions are exported from `telaio/schema`, not `telaio/server`, but are part of the server setup pipeline.
+
+See the [Schema API Reference](/docs/api-reference/schema) for full documentation on `registerSchemas(fastify, schemasDir)` and `registerBuiltinSchemas(fastify)`.

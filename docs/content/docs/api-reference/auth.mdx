@@ -1,0 +1,227 @@
+---
+title: Auth API Reference
+description: Complete reference for AuthAdapter, withAuth, guard types, request decorators, and the better-auth adapter.
+---
+
+# Auth API Reference
+
+Import path for core auth: `telaio/auth`
+Import path for better-auth adapter: `telaio/auth/better-auth`
+
+## AuthAdapter\<TSession\>
+
+The `AuthAdapter<TSession>` interface is the contract your authentication implementation must satisfy. Register it with the builder via `.withAuth(adapter)`.
+
+```typescript
+import type { AuthAdapter } from 'telaio/auth';
+```
+
+### Interface definition
+
+```typescript
+interface AuthAdapter<TSession> {
+  getSession(headers: Headers): Promise<TSession | null>;
+  handler?: (request: Request) => Promise<Response>;
+  basePath?: string;
+  skipPaths?: string[];
+  errorRedirectUrl?: string;
+  getSessionFromRequest?: (request: FastifyRequest) => TSession | null;
+  validateScope?: (session: TSession, scope: GuardScope) => boolean;
+  validateRole?: (session: TSession, roles: GuardRole[]) => boolean;
+  deriveScopes?: (scopes: GuardScope[], roles: GuardRole[]) => GuardScope[];
+  security?: (scopes: GuardScope[]) => Record<string, string[]>[];
+  responseSchemas?: (scopes: GuardScope[]) => Record<number, unknown>;
+}
+```
+
+### Fields
+
+| Field | Required | Type | Description |
+|-------|----------|------|-------------|
+| `getSession` | Yes | `(headers: Headers) => Promise<TSession \| null>` | Resolve a session from request headers; return `null` for unauthenticated requests |
+| `handler` | No | `(request: Request) => Promise<Response>` | HTTP handler mounted at `basePath` for auth routes (sign-in, OAuth callbacks, etc.) |
+| `basePath` | No | `string` | Mount path for `handler`; defaults to `/auth` |
+| `skipPaths` | No | `string[]` | Paths where session hydration is skipped entirely |
+| `errorRedirectUrl` | No | `string` | Redirect target on `401`; useful for SSR applications |
+| `getSessionFromRequest` | No | `(request: FastifyRequest) => TSession \| null` | Alternative session resolution from a `FastifyRequest` instead of raw headers |
+| `validateScope` | No | `(session: TSession, scope: GuardScope) => boolean` | Custom scope authorization logic used by `withAuth({ scopes })` |
+| `validateRole` | No | `(session: TSession, roles: GuardRole[]) => boolean` | Custom role authorization logic used by `withAuth({ roles })` |
+| `deriveScopes` | No | `(scopes: GuardScope[], roles: GuardRole[]) => GuardScope[]` | Synthesize additional scopes from the existing set of scopes and roles |
+| `security` | No | `(scopes: GuardScope[]) => Record<string, string[]>[]` | OpenAPI security scheme for guarded routes |
+| `responseSchemas` | No | `(scopes: GuardScope[]) => Record<number, unknown>` | Extra OpenAPI response schemas added to guarded routes |
+
+---
+
+## buildAuthPlugin(options)
+
+Builds a Fastify plugin from an `AuthAdapter`. This is called internally by `.withAuth()` on the builder. You typically do not call this directly unless you are composing plugins manually.
+
+```typescript
+import { buildAuthPlugin } from 'telaio/auth';
+
+function buildAuthPlugin<TSession>(options: AuthPluginOptions<TSession>): FastifyPlugin
+```
+
+### AuthPluginOptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `adapter` | `AuthAdapter<TSession>` | The auth adapter implementation |
+| `logger` | `Logger` | Pino logger instance for auth-related log output |
+
+---
+
+## withAuth(options?)
+
+A route option helper that spreads authentication and authorization requirements into a route definition. Telaio automatically adds `401` and `403` response schemas to the route's OpenAPI definition when `withAuth` is applied.
+
+```typescript
+import { withAuth } from 'telaio/auth';
+
+fastify.get(
+  '/admin/users',
+  {
+    ...withAuth({ roles: ['admin'], scopes: ['read:users'] }),
+    schema: { /* ... */ },
+  },
+  async (req) => {
+    const session = req.getAuthSession();
+    return getUsers();
+  },
+);
+```
+
+### Options
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `roles` | `GuardRole[]` | Require any one of these roles; delegates to `adapter.validateRole` |
+| `scopes` | `GuardScope[]` | Require all of these scopes; delegates to `adapter.validateScope` |
+| `authorize` | `(session: TSession) => boolean \| Promise<boolean>` | Custom predicate for fine-grained authorization logic |
+
+All options are optional. Calling `withAuth()` with no arguments simply enforces that a session exists (401 if not authenticated).
+
+---
+
+## Request decorators
+
+After registering an auth adapter, every Fastify request gains these decorators:
+
+| Decorator | Type | Description |
+|-----------|------|-------------|
+| `req.maybeAuthSession` | `TSession \| null` | Session if resolved, `null` otherwise |
+| `req.getAuthSession()` | `TSession` | Returns the session or throws `UnauthorizedError` (HTTP 401) if no session is present |
+| `req.hasAuthSession()` | `boolean` | `true` if a session was resolved for this request |
+
+```typescript
+fastify.get('/me', async (req) => {
+  // Nullable -- returns session or null
+  const maybeSession = req.maybeAuthSession;
+
+  // Boolean check without throwing
+  if (req.hasAuthSession()) {
+    // ...
+  }
+
+  // Throws UnauthorizedError (HTTP 401) if there is no session
+  const session = req.getAuthSession();
+  return { userId: session.userId };
+});
+```
+
+---
+
+## Type aliases
+
+### GuardScope
+
+```typescript
+type GuardScope = AuthGuardTypes extends { scope: infer S } ? S : string;
+```
+
+Resolves to the `scope` union from `AuthGuardTypes` if augmented, otherwise `string`.
+
+### GuardRole
+
+```typescript
+type GuardRole = AuthGuardTypes extends { role: infer R } ? R : string;
+```
+
+Resolves to the `role` union from `AuthGuardTypes` if augmented, otherwise `string`.
+
+---
+
+## Module augmentation
+
+### AuthGuardTypes
+
+Augment this interface to constrain `GuardScope` and `GuardRole` to your application's actual values. This makes `withAuth()` calls type-checked at compile time.
+
+```typescript
+// src/types/auth.d.ts
+declare module 'telaio/auth' {
+  interface AuthGuardTypes {
+    scope: 'read:users' | 'write:users' | 'admin';
+    role: 'owner' | 'admin' | 'member';
+  }
+}
+```
+
+After augmentation, `withAuth({ roles: ['superuser'] })` is a compile-time error.
+
+### SessionType
+
+Augment this interface to declare the shape of your session for global request type inference.
+
+```typescript
+declare module 'telaio/auth' {
+  interface SessionType {
+    userId: string;
+    email: string;
+    role: 'owner' | 'admin' | 'member';
+  }
+}
+```
+
+---
+
+## createBetterAuthAdapter(options)
+
+Creates an `AuthAdapter<TSession>` backed by a [better-auth](https://www.better-auth.com) instance.
+
+Import path: `telaio/auth/better-auth`
+
+```typescript
+import { createBetterAuthAdapter } from 'telaio/auth/better-auth';
+
+const adapter = createBetterAuthAdapter({
+  auth,
+  organization: true,
+  basePath: '/auth',
+  skipPaths: ['/auth/sign-out'],
+  errorRedirectUrl: '/login',
+  onSession: async (session, headers) => {
+    // Enrich or invalidate the resolved session
+    return session;
+  },
+});
+```
+
+### Signature
+
+```typescript
+function createBetterAuthAdapter<TSession>(
+  options: CreateBetterAuthAdapterOptions<TSession>
+): AuthAdapter<TSession>
+```
+
+### CreateBetterAuthAdapterOptions\<TSession\>
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `auth` | `BetterAuthLike` | -- | Your initialized better-auth instance |
+| `organization` | `boolean` | `false` | Resolve org membership context into the session |
+| `basePath` | `string` | `/auth` | Mount path for better-auth's HTTP handler |
+| `skipPaths` | `string[]` | `['/auth/sign-out']` | Paths where session hydration is skipped |
+| `errorRedirectUrl` | `string` | -- | Redirect target on auth failure |
+| `onSession` | `(session: TSession, headers: Headers) => Promise<TSession \| null>` | -- | Hook called after better-auth resolves the session; return `null` to invalidate |

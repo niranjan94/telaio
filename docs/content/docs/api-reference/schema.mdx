@@ -1,0 +1,245 @@
+---
+title: Schema API Reference
+description: Complete reference for TypeBox schema helpers, built-in schemas, and schema registration functions.
+---
+
+# Schema API Reference
+
+Import path: `telaio/schema`
+
+All helper functions and schema constants are exported from `telaio/schema`. Built-in schemas are registered automatically with every Telaio app.
+
+---
+
+## Helper functions
+
+### AutoRef
+
+Emits a JSON Schema `$ref` pointer using the schema's `$id`. Use this in route `schema.response`, `schema.querystring`, and similar fields to reference a named OpenAPI component rather than inlining the full schema.
+
+```typescript
+function AutoRef<T extends TSchema>(schema: T): Type.Unsafe<Static<T>>
+```
+
+The schema must have a `$id` property. If `$id` is missing, TypeBox cannot produce a valid `$ref`.
+
+```typescript
+import { AutoRef, SortPaginationParamsSchema } from 'telaio/schema';
+
+fastify.get('/users', {
+  schema: {
+    querystring: AutoRef(SortPaginationParamsSchema),
+    response: {
+      200: AutoRef(UserSchema),
+      404: AutoRef(NotFoundResponseSchema),
+    },
+  },
+}, handler);
+```
+
+---
+
+### Nullable
+
+Produces `Schema | null` as a TypeBox union. Use it wherever a value can be explicitly set to null.
+
+```typescript
+function Nullable<Schema extends TSchema>(schema: Schema): TUnion
+```
+
+```typescript
+import { Nullable, Timestamp } from 'telaio/schema';
+
+const UserSchema = Type.Object({
+  id: Type.String(),
+  deletedAt: Nullable(Timestamp),  // Date | null
+});
+```
+
+---
+
+### PlainEnum
+
+Creates a TypeBox `TEnum` from a TypeScript enum-like object using `Object.values()` to extract values. Avoids the more verbose TypeBox enum syntax.
+
+```typescript
+function PlainEnum<Enum extends TTypeScriptEnumLike>(enumObj: Enum): TEnum
+```
+
+```typescript
+import { PlainEnum } from 'telaio/schema';
+
+enum UserRole {
+  Admin = 'admin',
+  Member = 'member',
+  Guest = 'guest',
+}
+
+const RoleSchema = PlainEnum(UserRole);
+// Equivalent to Type.Enum(UserRole)
+```
+
+---
+
+### TypeName
+
+Adds an optional string literal field with a default value equal to the literal itself. Useful for discriminated unions and typed event payloads.
+
+```typescript
+function TypeName<T extends string>(typeName: T): TOptional<TLiteral<T>>
+```
+
+```typescript
+import { TypeName } from 'telaio/schema';
+
+const CreateUserEventSchema = Type.Object({
+  type: TypeName('user.created'),
+  userId: Type.String(),
+});
+// type field: optional, literal 'user.created', default 'user.created'
+```
+
+---
+
+### Paginated
+
+Wraps a data schema in a standard paginated response envelope with `data` and `meta` fields.
+
+```typescript
+function Paginated<DataSchemaType extends TSchema>(
+  DataSchema: DataSchemaType,
+  options?: TObjectOptions
+): TObject
+```
+
+Produces: `{ data: Array<AutoRef(DataSchema)>, meta: AutoRef(PaginationMetaSchema) }`
+
+```typescript
+import { Paginated } from 'telaio/schema';
+
+fastify.get('/users', {
+  schema: {
+    response: {
+      200: Paginated(UserSchema),
+      // Produces: { data: User[], meta: { total, skip, limit } }
+    },
+  },
+}, handler);
+```
+
+The optional second argument accepts additional options for the wrapper `TObject`.
+
+---
+
+### Timestamp
+
+A `TUnsafe<Date>` schema with `{ type: 'string', format: 'date-time' }`. Use it wherever you have a date/time field.
+
+```typescript
+const Timestamp: TUnsafe<Date>
+```
+
+```typescript
+import { Timestamp } from 'telaio/schema';
+
+const EventSchema = Type.Object({
+  id: Type.String(),
+  occurredAt: Timestamp,
+  deletedAt: Nullable(Timestamp),
+});
+```
+
+---
+
+## Built-in schemas
+
+These schemas are registered automatically with every Telaio application via `registerBuiltinSchemas`. They are available by `$ref` in any route schema and appear as named components in the generated OpenAPI spec.
+
+| Schema export | `$id` | Fields | Description |
+|---------------|-------|--------|-------------|
+| `SortPaginationParamsSchema` | `SortPaginationParams` | `sort?: string`, `limit?: number` (1-100, default 10), `skip?: number` (default 0) | Standard query params for sorted, paginated list endpoints |
+| `PaginationMetaSchema` | `PaginationMeta` | `total: number`, `skip: number`, `limit: number` | Response metadata for paginated results |
+| `GenericErrorResponseSchema` | `GenericErrorResponse` | `status`, `code`, `message` | Generic 500 error response body |
+| `BadRequestErrorResponseSchema` | `BadRequestErrorResponse` | `status`, `code`, `message` | 400 Bad Request response body |
+| `UnauthorizedResponseSchema` | `UnauthorizedResponse` | `status`, `code`, `message` | 401 Unauthorized response body |
+| `ForbiddenResponseSchema` | `ForbiddenResponse` | `status`, `code`, `message` | 403 Forbidden response body |
+| `NotFoundResponseSchema` | `NotFoundResponse` | `status`, `code`, `message` | 404 Not Found response body |
+
+```typescript
+import {
+  SortPaginationParamsSchema,
+  NotFoundResponseSchema,
+  UnauthorizedResponseSchema,
+} from 'telaio/schema';
+
+fastify.get('/users/:id', {
+  schema: {
+    querystring: AutoRef(SortPaginationParamsSchema),
+    response: {
+      200: AutoRef(UserSchema),
+      401: AutoRef(UnauthorizedResponseSchema),
+      404: AutoRef(NotFoundResponseSchema),
+    },
+  },
+}, handler);
+```
+
+---
+
+## Registration functions
+
+### registerSchemas(fastify, schemasDir)
+
+Scans a directory for TypeBox schema exports and registers each one with the Fastify instance. Files named `index.ts` and `utils.ts` are skipped. Exports whose names end in `Schema` are registered; `$id` is used as the component name.
+
+```typescript
+async function registerSchemas(
+  fastify: FastifyInstance,
+  schemasDir: string
+): Promise<void>
+```
+
+```typescript
+import { registerSchemas } from 'telaio/schema';
+
+await registerSchemas(fastify, '/app/src/schemas');
+```
+
+This is called automatically by the builder when `.withSchemas(dir)` is used. You would only call it directly when composing plugins manually.
+
+---
+
+### registerBuiltinSchemas(fastify)
+
+Registers all built-in Telaio schemas with the Fastify instance. Called automatically by the builder during startup.
+
+```typescript
+async function registerBuiltinSchemas(fastify: FastifyInstance): Promise<void>
+```
+
+```typescript
+import { registerBuiltinSchemas } from 'telaio/schema';
+
+await registerBuiltinSchemas(fastify);
+```
+
+---
+
+## Type exports
+
+| Type | Source schema | Description |
+|------|---------------|-------------|
+| `SortPaginationParams` | `SortPaginationParamsSchema` | `{ sort?: string; limit?: number; skip?: number }` |
+| `PaginationMeta` | `PaginationMetaSchema` | `{ total: number; skip: number; limit: number }` |
+
+```typescript
+import type { SortPaginationParams, PaginationMeta } from 'telaio/schema';
+
+function buildQuery(params: SortPaginationParams) {
+  return db.selectFrom('users')
+    .limit(params.limit ?? 10)
+    .offset(params.skip ?? 0);
+}
+```
+
+Error response types are inferred from their respective schemas (`GenericErrorResponseSchema`, `BadRequestErrorResponseSchema`, etc.) using TypeBox's `Static<>` utility.

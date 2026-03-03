@@ -1,0 +1,90 @@
+---
+title: Logger API Reference
+description: Complete reference for createLogger, LoggerOptions, auto-serializers, and pino-pretty detection.
+---
+
+# Logger API Reference
+
+Import path: `telaio/logger`
+
+Telaio's logger module wraps [Pino](https://getpino.io) with sensible defaults: auto-serializers for error objects and automatic pino-pretty detection. The returned `Logger` is a standard Pino logger instance.
+
+---
+
+## createLogger(options?)
+
+Creates and returns a configured Pino `Logger` instance.
+
+### Signature
+
+```typescript
+function createLogger(options?: LoggerOptions): Logger
+```
+
+```typescript
+import { createLogger } from 'telaio/logger';
+
+// With defaults (level: 'info', pretty: true when available)
+const logger = createLogger();
+
+// With explicit options
+const logger = createLogger({
+  level: 'debug',
+  pretty: false,
+});
+```
+
+---
+
+## LoggerOptions
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `level` | `string` | `'info'` | Minimum log level. One of: `trace`, `debug`, `info`, `warn`, `error`, `fatal` |
+| `pretty` | `boolean` | `true` | Enable pino-pretty formatted output when the package is available. Set to `false` for JSON output |
+| `transport` | `TransportSingleOptions` | -- | Custom Pino transport configuration; overrides the pino-pretty default |
+
+---
+
+## Auto-serializers
+
+Error objects are serialized automatically for the `err`, `error`, and `e` log fields. You do not need to convert errors to plain objects manually.
+
+```typescript
+// All three produce a serialized error with message, stack, name, code, and enumerable properties
+logger.error({ err: new Error('connection refused') }, 'Database error');
+logger.error({ error: new Error('timeout') }, 'Request failed');
+logger.error({ e: validationError }, 'Invalid input');
+```
+
+The serializer uses Pino's `stdSerializers.err` and extracts `message`, `stack`, `name`, `code`, and any enumerable properties from the error object.
+
+---
+
+## pino-pretty auto-detection
+
+When `pretty` is not explicitly set to `false`, `createLogger` attempts to load `pino-pretty`. If pino-pretty is not installed, the logger falls back to standard JSON output without throwing an error.
+
+Install pino-pretty as a dev dependency for local development:
+
+```bash
+pnpm add -D pino-pretty
+```
+
+In production, use JSON output for structured log aggregation by setting `pretty: false` or by not installing pino-pretty in your production image.
+
+---
+
+## Return type
+
+`createLogger` returns the standard Pino `Logger` type. Import the type from `telaio/logger`:
+
+```typescript
+import type { Logger } from 'telaio/logger';
+
+function initModule(logger: Logger) {
+  logger.info('Module initialized');
+}
+```
+
+The `Logger` type is re-exported from `pino` -- it is the same type used throughout the Telaio framework for consistency.

@@ -1,0 +1,91 @@
+---
+title: Email API Reference
+description: Complete reference for sendReactEmail, EmailSendOptions, and EmailConfig.
+---
+
+# Email API Reference
+
+Import path: `telaio/email`
+
+Telaio's email module sends transactional email via AWS SES using [React Email](https://react.email) components for template rendering. Both the HTML and plain-text versions of the email are rendered automatically from the React component.
+
+---
+
+## Peer dependencies
+
+```bash
+pnpm add @aws-sdk/client-ses @react-email/components
+```
+
+Both are optional peer dependencies. They are not installed by default. Add them only when your application sends email.
+
+---
+
+## sendReactEmail(options, config)
+
+Renders a React Email component to HTML and plain text, then sends the message via AWS SES.
+
+### Signature
+
+```typescript
+async function sendReactEmail(
+  options: EmailSendOptions,
+  config: EmailConfig
+): Promise<void>
+```
+
+```typescript
+import { sendReactEmail } from 'telaio/email';
+import { WelcomeEmail } from './emails/WelcomeEmail.js';
+
+await sendReactEmail(
+  {
+    from: 'noreply@myapp.com',
+    to: user.email,
+    subject: 'Welcome to MyApp!',
+    react: <WelcomeEmail name={user.name} />,
+  },
+  { region: 'us-east-1' },
+);
+```
+
+---
+
+## EmailSendOptions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `from` | `string` | Sender address; must be verified in AWS SES |
+| `to` | `string` | Recipient email address |
+| `subject` | `string` | Email subject line |
+| `react` | `any` | React element (ReactNode) to render as both HTML and plain text |
+
+---
+
+## EmailConfig
+
+Note: this is the config object passed directly to `sendReactEmail`. It is distinct from the `email` key in Telaio's application config module.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `region` | `string` | AWS SES region (e.g. `us-east-1`, `eu-west-1`) |
+
+---
+
+## AWS credentials
+
+`sendReactEmail` does not accept explicit credentials. The AWS SDK resolves credentials through the default provider chain in order:
+
+1. `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` environment variables
+2. Shared credentials file (`~/.aws/credentials`)
+3. ECS task role, EC2 instance profile, or EKS service account (IAM role)
+
+For local development, set the environment variables. In production, attach an IAM role to your compute resource and omit explicit credentials entirely.
+
+```bash
+# Local development
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
+AWS_SES_REGION=us-east-1
+EMAIL_FROM=noreply@myapp.com
+```
