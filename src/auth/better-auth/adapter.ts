@@ -1,4 +1,5 @@
 import type { FastifyRequest } from 'fastify';
+import { Type } from 'typebox';
 import { ForbiddenError } from '../../errors/index.js';
 import { AutoRef, GenericErrorResponseSchema } from '../../schema/index.js';
 import type { AuthAdapter } from '../adapter.js';
@@ -23,7 +24,7 @@ interface BetterAuthLike {
 }
 
 /** Options for createBetterAuthAdapter(). */
-export interface CreateBetterAuthAdapterOptions {
+export interface CreateBetterAuthAdapterOptions<TSession = unknown> {
   /** The better-auth instance. */
   auth: BetterAuthLike;
   /** Enable organization-aware session resolution (calls getActiveMember). */
@@ -34,6 +35,8 @@ export interface CreateBetterAuthAdapterOptions {
   basePath?: string;
   /** Paths to skip session hydration. @default ['/auth/sign-out'] */
   skipPaths?: string[];
+  /** Post-processing hook called after session resolution. Return null to reject, throw to error. */
+  onSession?: (session: TSession, headers: Headers) => Promise<TSession | null>;
 }
 
 /**
@@ -41,7 +44,7 @@ export interface CreateBetterAuthAdapterOptions {
  * Two modes: basic (session + user) or org-aware (session + user + organization).
  */
 export function createBetterAuthAdapter<TSession>(
-  options: CreateBetterAuthAdapterOptions,
+  options: CreateBetterAuthAdapterOptions<TSession>,
 ): AuthAdapter<TSession> {
   const {
     auth,
@@ -49,12 +52,15 @@ export function createBetterAuthAdapter<TSession>(
     errorRedirectUrl,
     basePath = '/auth',
     skipPaths = ['/auth/sign-out'],
+    onSession,
   } = options;
 
   return {
     async getSession(headers: Headers): Promise<TSession | null> {
       const res = await auth.api.getSession({ headers });
       if (!res) return null;
+
+      let session: TSession;
 
       if (organization) {
         if (!auth.api.getActiveMember) {
@@ -66,7 +72,7 @@ export function createBetterAuthAdapter<TSession>(
         const member = await auth.api.getActiveMember({ headers });
         if (!member) return null;
 
-        return {
+        session = {
           ...res.session,
           user: res.user,
           organization: {
@@ -74,9 +80,15 @@ export function createBetterAuthAdapter<TSession>(
             member: { id: member.id, role: member.role },
           },
         } as TSession;
+      } else {
+        session = { ...res.session, user: res.user } as TSession;
       }
 
-      return { ...res.session, user: res.user } as TSession;
+      if (onSession) {
+        return onSession(session, headers);
+      }
+
+      return session;
     },
 
     async handler(request: Request): Promise<Response> {
@@ -129,14 +141,24 @@ export function createBetterAuthAdapter<TSession>(
         }
       : undefined,
 
-    security: () =>
-      [{ cookieAuthSessionToken: [] }, { cookieAuthState: [] }] as Record<
-        string,
-        string[]
-      >[],
+    security: (scopes: string[]) => {
+      const entries: Record<string, string[]>[] = [
+        { cookieAuthSessionToken: [] },
+        { cookieAuthState: [] },
+      ];
+      if (scopes.includes('apiKey')) {
+        entries.push({ apiKey: [] });
+      }
+      return entries;
+    },
 
-    responseSchemas: () => ({
-      400: AutoRef(GenericErrorResponseSchema),
-    }),
+    responseSchemas: (scopes: string[]) => {
+      if (scopes.includes('organization')) {
+        return {
+          400: Type.Union([AutoRef(GenericErrorResponseSchema) as never]),
+        };
+      }
+      return { 400: AutoRef(GenericErrorResponseSchema) };
+    },
   };
 }

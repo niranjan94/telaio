@@ -901,7 +901,7 @@ describe('createBetterAuthAdapter', () => {
     expect(result).toEqual(['organization']);
   });
 
-  it('guard: security returns cookie entries', () => {
+  it('guard: security returns cookie entries without apiKey by default', () => {
     const auth = createMockAuth();
     const adapter = createBetterAuthAdapter({ auth });
     const entries = adapter.security?.([] as never[]);
@@ -911,11 +911,78 @@ describe('createBetterAuthAdapter', () => {
     ]);
   });
 
+  it('guard: security includes apiKey when apiKey scope is present', () => {
+    const auth = createMockAuth();
+    const adapter = createBetterAuthAdapter({ auth });
+    const entries = adapter.security?.(['apiKey'] as never[]);
+    expect(entries).toEqual([
+      { cookieAuthSessionToken: [] },
+      { cookieAuthState: [] },
+      { apiKey: [] },
+    ]);
+  });
+
   it('guard: responseSchemas returns 400 with GenericErrorResponseSchema', () => {
     const auth = createMockAuth();
     const adapter = createBetterAuthAdapter({ auth });
     const schemas = adapter.responseSchemas?.([] as never[]);
     expect(schemas?.[400]).toBeDefined();
+  });
+
+  it('guard: responseSchemas returns Type.Union for org-scoped routes', () => {
+    const auth = createMockAuth();
+    const adapter = createBetterAuthAdapter({ auth, organization: true });
+    const schemas = adapter.responseSchemas?.(['organization'] as never[]);
+    expect(schemas?.[400]).toBeDefined();
+  });
+
+  // -- onSession hook tests --
+
+  it('calls onSession hook after session resolution', async () => {
+    const auth = createMockAuth();
+    const onSession = vi.fn().mockImplementation((session) => session);
+    const adapter = createBetterAuthAdapter({ auth, onSession });
+
+    await adapter.getSession(new Headers());
+    expect(onSession).toHaveBeenCalledWith(
+      expect.objectContaining({ user: { id: 'u1', name: 'Test' } }),
+      expect.any(Headers),
+    );
+  });
+
+  it('onSession can reject session by returning null', async () => {
+    const auth = createMockAuth();
+    const onSession = vi.fn().mockResolvedValue(null);
+    const adapter = createBetterAuthAdapter({ auth, onSession });
+
+    const result = await adapter.getSession(new Headers());
+    expect(result).toBeNull();
+  });
+
+  it('onSession can throw to error', async () => {
+    const auth = createMockAuth();
+    const onSession = vi.fn().mockRejectedValue(new Error('Denied'));
+    const adapter = createBetterAuthAdapter({ auth, onSession });
+
+    await expect(adapter.getSession(new Headers())).rejects.toThrow('Denied');
+  });
+
+  it('onSession receives org-enriched session in org mode', async () => {
+    const auth = createMockAuth();
+    const onSession = vi.fn().mockImplementation((session) => session);
+    const adapter = createBetterAuthAdapter({
+      auth,
+      organization: true,
+      onSession,
+    });
+
+    await adapter.getSession(new Headers());
+    expect(onSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organization: { id: 'org-1', member: { id: 'm1', role: 'admin' } },
+      }),
+      expect.any(Headers),
+    );
   });
 });
 
