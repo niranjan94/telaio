@@ -1,0 +1,163 @@
+---
+title: Config System
+description: How Telaio's composable Zod config works -- modules, env vars, extension, and the telaio.config.ts discovery file.
+---
+
+# Config System
+
+Telaio's config system is built on Zod and follows a composable module model. You declare which infrastructure pieces your app uses, and the system assembles the corresponding schema, validates your environment variables, and produces a fully-typed config object. The generic type narrows based on the flags you pass in -- just like the builder's phantom types.
+
+## telaio.config.ts
+
+The CLI discovers your project's configuration through a `telaio.config.ts` file in the project root, in the same way that tools like Vitest discover `vitest.config.ts`. This file is not imported by your application at runtime -- it is only read by the `telaio` CLI.
+
+```typescript
+// telaio.config.ts
+import { defineConfig } from 'telaio/config';
+import { z } from 'zod';
+
+export default defineConfig({
+  modules: {
+    server: true,
+    database: true,
+    cache: true,
+  },
+  extend: z.object({
+    STRIPE_SECRET_KEY: z.string(),
+    FRONTEND_URL: z.string().url(),
+  }),
+  app: 'src/app.ts',
+  client: { output: 'client' },
+  consumer: { registry: 'src/queues/registry/index.ts' },
+});
+```
+
+### defineConfig fields
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `modules` | `ConfigModules` | Which built-in config sections to include |
+| `extend` | `z.ZodType` | Additional Zod schema merged on top of the built-in sections |
+| `app` | `string` | Entry point for `telaio dev` and `telaio build` |
+| `client` | `{ output: string }` | Output path for `telaio gen-client` |
+| `consumer` | `{ registry: string }` | Queue registry path for `telaio consumer` |
+| `dev` | `object` | Dev-server options |
+
+## Loading config in your application
+
+Your app code calls `loadConfig()` or `loadConfigAsync()` -- not `defineConfig()`. These functions read env vars (from `.env` by default), validate them against the composed schema, and return the typed config object.
+
+```typescript
+import { loadConfig } from 'telaio/config';
+
+const config = loadConfig({
+  modules: {
+    server: true,
+    database: true,
+    cache: true,
+  },
+});
+
+// config is fully typed -- DATABASE_URL, REDIS_URL, etc. are all present
+```
+
+### loadConfig vs loadConfigAsync
+
+| Function | When to use |
+|----------|------------|
+| `loadConfig(opts)` | Synchronous. Reads from the filesystem and process.env. Works in all contexts. |
+| `loadConfigAsync(opts)` | Async. Supports remote config sources such as `CONFIG_SOURCE=ssm:/my/path` (AWS SSM Parameter Store). |
+
+If you are not using SSM or another async config source, `loadConfig()` is preferred -- it keeps your startup code synchronous and avoids an unnecessary `await`.
+
+## Config modules and their env vars
+
+Declare which modules are active using the `modules` option. Only the env vars for active modules are required.
+
+| Module | Required env vars |
+|--------|------------------|
+| core (always active) | `APP_NAME`, `NODE_ENV`, `BASE_DIR` |
+| `server: true` | `API_URL`, `API_LISTEN_PORT`, `API_LISTEN_ADDRESS`, `CORS_ORIGINS`, `WHITELIST_PROXIES`, `ENABLE_API_DOCS` |
+| `database: true` | `DATABASE_URL`, `DATABASE_SSL` |
+| `cache: true` | `REDIS_ENABLED`, `REDIS_URL` |
+| `queue: true` | `QUEUE_SCHEMA` |
+| `s3: true` | `AWS_S3_REGION`, `AWS_S3_BUCKET_NAME`, `AWS_S3_ENDPOINT`, `AWS_S3_ACCESS_KEY_ID`, `AWS_S3_SECRET_ACCESS_KEY` |
+| `email: true` | `AWS_SES_REGION`, `EMAIL_FROM` |
+
+## Extending with app-specific env vars
+
+Use `extend` to add Zod validators for any env vars that are not part of Telaio's built-in modules. The result is merged into the final config type:
+
+```typescript
+import { loadConfig } from 'telaio/config';
+import { z } from 'zod';
+
+const config = loadConfig({
+  modules: { server: true, database: true },
+  extend: z.object({
+    STRIPE_SECRET_KEY: z.string().min(1),
+    FRONTEND_URL: z.string().url(),
+    FEATURE_FLAG_NEW_CHECKOUT: z.coerce.boolean().default(false),
+  }),
+});
+
+// config.STRIPE_SECRET_KEY is string
+// config.FRONTEND_URL is string
+// config.FEATURE_FLAG_NEW_CHECKOUT is boolean
+```
+
+## Inferring the config type
+
+<Callout type="warn">
+Do not use `InferConfig<Modules, never>` as a type annotation. In Zod v4, the `never` second argument causes the type to collapse to `never`, making your entire config typed as `never`. Use `typeof config` instead to let TypeScript infer the type from the return value of `loadConfig()`.
+</Callout>
+
+```typescript
+// Wrong -- collapses to never in Zod v4
+import type { InferConfig } from 'telaio/config';
+type Config = InferConfig<{ server: true; database: true }, never>;
+
+// Correct -- infer from the return value
+const config = loadConfig({ modules: { server: true, database: true } });
+type Config = typeof config;
+```
+
+If you need to pass the config type as a generic parameter (for example to `createApp<Config>()`), export `typeof config` from a shared module:
+
+```typescript
+// src/config.ts
+import { loadConfig } from 'telaio/config';
+
+export const config = loadConfig({
+  modules: { server: true, database: true, cache: true },
+});
+
+export type Config = typeof config;
+```
+
+## Testing and source overrides
+
+For tests, you often want to skip `.env` file loading and provide values directly. Use the `source` option to pass a plain object instead of reading from the environment:
+
+```typescript
+import { loadConfig } from 'telaio/config';
+
+const config = loadConfig({
+  modules: { server: true, database: true },
+  source: {
+    APP_NAME: 'test-app',
+    NODE_ENV: 'test',
+    DATABASE_URL: 'postgres://localhost:5432/test',
+    // ...
+  },
+});
+```
+
+If your test environment pre-loads env vars another way (for example, through a Vitest setup file or a custom dotenv call), use `skipEnvLoad: true` to skip Telaio's dotenv loading without providing a `source` object:
+
+```typescript
+const config = loadConfig({
+  modules: { database: true },
+  skipEnvLoad: true, // process.env is already populated
+});
+```

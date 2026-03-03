@@ -1,0 +1,155 @@
+---
+title: Builder Pattern
+description: How createApp() and AppBuilder wire together features, types, and assembly order into a single Promise<TelaioApp>.
+---
+
+# Builder Pattern
+
+The builder pattern is Telaio's primary composition mechanism. Instead of a single monolithic config object, you chain method calls to opt into features one by one. Each call narrows the TypeScript types so the final `TelaioApp` only exposes what you actually configured.
+
+## Starting a builder
+
+```typescript
+import { createApp } from 'telaio';
+
+const builder = createApp({ config });
+```
+
+`createApp(options?)` returns an `AppBuilder<DefaultFeatures, unknown, TConfig>`. The three type parameters track everything that matters across the chain:
+
+| Parameter | Purpose | Default |
+|-----------|---------|---------|
+| `F extends Features` | Which optional features are active | `DefaultFeatures` (all `false`) |
+| `TSession` | The shape of the authenticated session object | `unknown` |
+| `TConfig` | The config type returned by `loadConfig()` | `Record<string, never>` |
+
+You never write these explicitly. They are inferred as you chain methods.
+
+## Builder methods
+
+Each method returns a new `AppBuilder` with the updated type parameters. Nothing is constructed until you call `.build()`.
+
+| Method | What it does | Type change |
+|--------|-------------|-------------|
+| `.withDatabase(options?)` | Registers a pg pool and Kysely instance | `F & { database: true }` |
+| `.withCache(options?)` | Registers a Redis-backed cache | `F & { cache: true }` |
+| `.withQueues(registry, options?)` | Registers pg-boss producer and typed consumers | `F & { queue: true }` |
+| `.withAuth(adapter)` | Registers the auth Fastify plugin | `F & { auth: true }`, `TSession = S` |
+| `.withSwagger(options)` | Registers OpenAPI spec generation | no change |
+| `.withApiDocs(options?)` | Registers Scalar UI at `/reference` | `F & { apiDocs: true }` |
+| `.withPlugins(options)` | Configures autoload dir, rate limiting, CORS, etc. | no change |
+| `.withSchemas(dir)` | Sets the directory for auto-registered TypeBox schemas | no change |
+| `.onReady(fn)` | Registers a hook called after `fastify.listen()` | no change |
+| `.onClose(fn)` | Registers a hook called during graceful shutdown | no change |
+| `.withTempFiles()` | Enables temporary file upload support | no change |
+| `.asEphemeral()` | Skips lifecycle hooks (useful for tests) | no change |
+
+## Standard wiring example
+
+```typescript
+import { createApp } from 'telaio';
+import { registry } from './queues/registry/index.js';
+import { adapter } from './auth/adapter.js';
+import config from './config.js';
+
+const app = await createApp({ config })
+  .withDatabase()
+  .withCache()
+  .withQueues(registry)
+  .withAuth(adapter)
+  .withSwagger({ info: { title: 'My API', version: '1.0.0' } })
+  .withApiDocs()
+  .build();
+
+// All of these are fully typed:
+app.fastify   // FastifyInstance
+app.config    // TConfig
+app.pool      // pg.Pool
+app.db        // Kysely<DB>
+app.cache     // Redis wrapper
+app.queue     // pg-boss producer
+app.logger    // Pino logger
+
+await app.start({ port: 3000 });
+```
+
+## The TelaioApp shape
+
+Calling `.build()` resolves to a `TelaioApp<F, TSession, TConfig>`. Some properties are always present; others are conditional on the feature flags baked into `F`.
+
+**Always present:**
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `fastify` | `FastifyInstance` | The underlying Fastify server |
+| `config` | `TConfig` | The validated config object |
+| `logger` | `Logger` | Pino logger instance |
+| `start(options?)` | `Promise<void>` | Bind to a port and start accepting requests |
+| `stop()` | `Promise<void>` | Gracefully shut down |
+
+**Conditional (only present when the matching feature flag is `true`):**
+
+| Property | Requires | Type |
+|----------|---------|------|
+| `pool` | `database: true` | `pg.Pool` |
+| `db` | `database: true` | `Kysely<unknown>` |
+| `cache` | `cache: true` | Redis wrapper |
+| `queue` | `queue: true` | pg-boss producer |
+| `auth` | `auth: true` | `{ session: TSession }` |
+
+Accessing a conditional property without calling the corresponding `with*()` method is a compile-time error. See [Phantom Types](/docs/core-concepts/phantom-types) for how this works.
+
+## Build assembly order
+
+`.build()` performs a fixed 12-step assembly. The order is not arbitrary -- Fastify's plugin model requires that hooks registered by a plugin only fire for routes registered after it.
+
+1. Create `FastifyInstance`
+2. Set up database -- pg pool, Kysely instance, CITEXT type parser
+3. Set up queue producer (pg-boss)
+4. Set up cache (Redis or disabled stub)
+5. Register user plugins (`skipAutoload: true` -- routes are deferred)
+6. Register Swagger plugin (must precede route autoload so the `onRoute` hook captures every route)
+7. Register auth plugin (after Swagger, before schemas)
+8. Register built-in TypeBox schemas
+9. Register user schemas from the schemas directory
+10. Register Scalar API docs UI
+11. Register autoload (routes) -- runs after Swagger so all routes appear in the spec
+12. Register lifecycle hooks (skipped when `.asEphemeral()` is used)
+
+<Callout type="warn">
+Swagger must be registered before routes. If you register routes first, the `onRoute` hook cannot capture them and they will not appear in your OpenAPI spec. Telaio enforces this order automatically -- you cannot reorder steps 6 and 11.
+</Callout>
+
+## The auth chicken-and-egg problem
+
+Some auth libraries (such as better-auth) require a database connection during their own initialization, before you call `.build()`. This creates a circular dependency: you need `pool` to configure auth, but `pool` is normally created inside `.build()`.
+
+Telaio provides standalone factory functions that mirror what `.build()` would create internally. You can pass the pre-built instances back into the builder so the same connections are reused rather than duplicated.
+
+```typescript
+import { createPool, createDatabase } from 'telaio/db';
+import { createBetterAuth } from 'better-auth';
+import { createBetterAuthAdapter } from 'telaio/auth/better-auth';
+import { createApp } from 'telaio';
+import config from './config.js';
+
+// Step 1: create the pool and db independently
+const pool = await createPool(config);
+const db = await createDatabase<DB>(pool);
+
+// Step 2: pass the pool into the auth library
+const auth = createBetterAuth({
+  database: { provider: 'pg', db: pool },
+});
+const adapter = createBetterAuthAdapter({ auth });
+
+// Step 3: hand the pre-built instances to the builder
+const app = await createApp({ config })
+  .withDatabase({ pool, db })  // reuse -- no second connection opened
+  .withAuth(adapter)
+  .build();
+```
+
+<Callout type="warn">
+`db.destroy()` (Kysely) also ends the underlying pg Pool through the `PostgresDialect`. Never call both `db.destroy()` and `pool.end()` -- the second call will throw because the pool is already closed.
+</Callout>

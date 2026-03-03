@@ -1,0 +1,136 @@
+---
+title: Phantom Types
+description: How Telaio uses phantom type parameters to enforce feature availability at compile time without any runtime overhead.
+---
+
+# Phantom Types
+
+A phantom type is a type parameter that exists solely to influence what the type-checker will allow. It carries no runtime value -- there is no corresponding field, variable, or property. The type lives only in the compiler's mind, and it disappears completely after compilation.
+
+Telaio uses phantom types to turn "did you call `.withDatabase()` before accessing `.db`?" from a runtime crash into a compile-time error.
+
+## The Features interface
+
+Every `AppBuilder` and every `TelaioApp` carries an `F` type parameter constrained to `Features`:
+
+```typescript
+export interface Features {
+  database: boolean;
+  cache: boolean;
+  queue: boolean;
+  auth: boolean;
+  apiDocs: boolean;
+}
+
+export type DefaultFeatures = {
+  database: false;
+  cache: false;
+  queue: false;
+  auth: false;
+  apiDocs: false;
+};
+```
+
+When you call `createApp()`, `F` starts as `DefaultFeatures` -- every flag is `false`. None of the optional properties exist on the resulting `TelaioApp`. They are literally not part of the type.
+
+## How a with*() call widens F
+
+Each builder method that enables a feature returns a new `AppBuilder` where `F` has been intersected with a single `{ featureName: true }` record:
+
+```typescript
+withDatabase(options?: WithDatabaseOptions): AppBuilder<F & { database: true }, TSession, TConfig>
+withCache(options?: WithCacheOptions):       AppBuilder<F & { cache: true },    TSession, TConfig>
+withQueues(registry, options?):             AppBuilder<F & { queue: true },    TSession, TConfig>
+withAuth<S>(adapter):                       AppBuilder<F & { auth: true },     S,        TConfig>
+withApiDocs(options?):                      AppBuilder<F & { apiDocs: true },  TSession, TConfig>
+```
+
+Each call produces a new type. The builder objects are immutable from TypeScript's perspective -- chaining `.withDatabase().withCache()` gives you `AppBuilder<DefaultFeatures & { database: true } & { cache: true }, ...>`, which simplifies to `AppBuilder<{ database: true; cache: true; queue: false; auth: false; apiDocs: false }, ...>`.
+
+## TelaioApp conditional intersections
+
+`TelaioApp<F>` uses conditional types to add or omit properties based on the flags in `F`:
+
+```typescript
+export type TelaioApp<F extends Features, TSession, TConfig> = {
+  fastify: FastifyInstance;
+  config: TConfig;
+  logger: Logger;
+  start: (options?: StartOptions) => Promise<void>;
+  stop: () => Promise<void>;
+} & (F['database'] extends true ? { pool: pg.Pool; db: Kysely<unknown> } : unknown)
+  & (F['cache']    extends true ? { cache: unknown }                    : unknown)
+  & (F['queue']    extends true ? { queue: unknown }                    : unknown)
+  & (F['auth']     extends true ? { auth: { session: TSession } }       : unknown);
+```
+
+The `& unknown` branches are the key. In TypeScript, `A & unknown` is always exactly `A` -- intersecting with `unknown` is a no-op. So when a flag is `false`, the conditional resolves to `unknown`, which contributes nothing to the type. When the flag is `true`, the conditional resolves to an object type that merges its properties into the result.
+
+## A concrete compile error
+
+```typescript
+import { createApp } from 'telaio';
+
+const app = await createApp({ config }).build();
+// F = DefaultFeatures = { database: false; cache: false; ... }
+
+// TypeScript error: Property 'pool' does not exist on type
+// 'TelaioApp<{ database: false; cache: false; queue: false; auth: false; apiDocs: false }, ...>'
+console.log(app.pool);
+```
+
+Adding `.withDatabase()` before `.build()` resolves the error:
+
+```typescript
+const app = await createApp({ config })
+  .withDatabase()  // F becomes { database: true; cache: false; ... }
+  .build();
+
+console.log(app.pool);  // pg.Pool -- no error
+console.log(app.db);    // Kysely<unknown> -- no error
+console.log(app.cache); // error: cache flag is still false
+```
+
+The compiler catches the mistake before the process ever starts.
+
+## TSession: typed auth sessions
+
+The second type parameter, `TSession`, follows the same pattern but for authentication. When you call `.withAuth(adapter)`, the adapter carries a generic session type `S`, and the builder captures it:
+
+```typescript
+withAuth<S>(adapter: AuthAdapter<S>): AppBuilder<F & { auth: true }, S, TConfig>
+```
+
+After `.build()`, the resulting `TelaioApp` exposes `auth: { session: TSession }`. More importantly, Fastify request objects gain a typed `maybeAuthSession` property -- your route handlers see the concrete session shape rather than `unknown`.
+
+```typescript
+fastify.get('/profile', async (req, reply) => {
+  // req.maybeAuthSession is TSession | null, not unknown
+  if (!req.maybeAuthSession) {
+    return reply.unauthorized();
+  }
+  return { userId: req.maybeAuthSession.userId }; // fully typed
+});
+```
+
+## Typed scopes and roles
+
+If your auth adapter enforces scopes or roles, you can extend Telaio's guard types via module augmentation. This makes the `requireScope()` and `requireRole()` helper types aware of your application's specific values:
+
+```typescript
+// src/auth/types.ts
+declare module 'telaio/auth' {
+  interface AuthGuardTypes {
+    scope: 'read:users' | 'write:users' | 'admin';
+    role: 'owner' | 'admin' | 'member';
+  }
+}
+```
+
+With this declaration in place, passing an invalid scope string to a guard helper becomes a compile-time error rather than a silent runtime bypass.
+
+## Why this matters
+
+The alternative to phantom types is runtime checks: `if (!app.pool) throw new Error('database not configured')`. That approach requires tests to cover every misconfiguration, pushes errors to deployment time rather than author time, and produces error messages that are harder to act on.
+
+Phantom types move the check to the moment you write the code. The feedback loop is as tight as it can be -- your editor's type-checker catches the problem before you ever run `pnpm build`.

@@ -1,0 +1,189 @@
+---
+title: Project Conventions
+description: The directory layout, naming rules, and default behaviors Telaio expects and how to override them.
+---
+
+# Project Conventions
+
+Telaio's CLI and builder have opinions about where things live. Sticking to the defaults means less configuration. Every default has an explicit override if you need to deviate.
+
+## Directory layout
+
+```
+project-root/
+  telaio.config.ts      # CLI discovery -- must be at the root
+  src/
+    app.ts              # Your AppBuilder wiring
+    config.ts           # loadConfig() call and exported Config type
+    routes/             # Fastify route plugins (autoloaded)
+    schemas/            # TypeBox schema files (auto-registered)
+    db/
+      migrations/       # Timestamped Kysely migration files
+    queues/
+      registry/         # Queue job handler registry
+```
+
+## Routes -- src/routes/
+
+Telaio uses `@fastify/autoload` to load route plugins from `src/routes/`. The defaults are:
+
+- `routeParams: true` -- directory names prefixed with `_` are treated as route parameters. `src/routes/users/_id/index.ts` becomes `GET /users/:id`.
+- `autoHooks: true` -- files named `_hooks.ts` at any level are registered as Fastify plugins before sibling routes.
+- `cascadeHooks: true` -- hooks registered in a parent directory apply to all routes in subdirectories.
+
+### Route file shape
+
+```typescript
+// src/routes/users/_id/index.ts  =>  GET /users/:id
+import type { FastifyPluginAsync } from 'fastify';
+
+const plugin: FastifyPluginAsync = async (fastify) => {
+  fastify.get('/', { schema }, async (req, reply) => {
+    const { id } = req.params as { id: string };
+    // ...
+  });
+};
+
+export default plugin;
+```
+
+The path is derived from the directory structure. The filename `index.ts` contributes no path segment.
+
+### Auto-hooks
+
+```typescript
+// src/routes/_hooks.ts -- applies to every route in the application
+import type { FastifyPluginAsync } from 'fastify';
+
+const hooks: FastifyPluginAsync = async (fastify) => {
+  fastify.addHook('onRequest', async (req, reply) => {
+    // runs before every request handler
+  });
+};
+
+export default hooks;
+```
+
+Hooks in a subdirectory apply only to routes at the same level and below:
+
+```typescript
+// src/routes/admin/_hooks.ts -- applies only to routes under /admin
+import type { FastifyPluginAsync } from 'fastify';
+
+const hooks: FastifyPluginAsync = async (fastify) => {
+  fastify.addHook('onRequest', requireAdminSession);
+};
+
+export default hooks;
+```
+
+## Schemas -- src/schemas/
+
+TypeBox schema files placed in `src/schemas/` are auto-registered with Fastify at startup. Registered schemas can be referenced by `$id` in route schemas anywhere in the application.
+
+**Naming rules:**
+
+- Files must export values whose names end in `Schema` to be picked up (e.g., `UserSchema`, `CreateUserBodySchema`).
+- `index.ts` and `utils.ts` are excluded from auto-registration -- use these for shared helpers and barrel re-exports.
+
+```typescript
+// src/schemas/user.ts
+import { Type } from '@sinclair/typebox';
+
+export const UserSchema = Type.Object(
+  {
+    id: Type.String({ format: 'uuid' }),
+    email: Type.String({ format: 'email' }),
+    createdAt: Type.String({ format: 'date-time' }),
+  },
+  { $id: 'User' }
+);
+```
+
+Once registered, `{ $ref: 'User#' }` is valid in any route schema.
+
+## Migrations -- src/db/migrations/
+
+Kysely migration files live in `src/db/migrations/`. Use timestamped filenames so migrations sort chronologically:
+
+```
+src/db/migrations/
+  20240101000000_create_users.ts
+  20240115120000_add_user_roles.ts
+  20240201090000_create_sessions.ts
+```
+
+Each file exports an object with `up` and `down` functions:
+
+```typescript
+// src/db/migrations/20240101000000_create_users.ts
+import type { Kysely } from 'kysely';
+
+export async function up(db: Kysely<unknown>): Promise<void> {
+  await db.schema
+    .createTable('users')
+    .addColumn('id', 'uuid', (col) => col.primaryKey().defaultTo(sql`gen_random_uuid()`))
+    .addColumn('email', 'text', (col) => col.notNull().unique())
+    .execute();
+}
+
+export async function down(db: Kysely<unknown>): Promise<void> {
+  await db.schema.dropTable('users').execute();
+}
+```
+
+Run migrations with `telaio migrate` (or `telaio migrate --latest` to apply all pending).
+
+## telaio.config.ts -- CLI discovery
+
+The `telaio` CLI reads `telaio.config.ts` from the current working directory. It must be at the project root -- the CLI does not search parent directories.
+
+This file controls:
+
+- Which source files the CLI uses for `dev`, `build`, and `consumer` commands
+- The output path for `gen-client`
+- The queue registry path for `consumer`
+
+See [Config System](/docs/core-concepts/config-system) for the full `defineConfig` API.
+
+## Overriding the defaults
+
+Every convention is a default, not a requirement.
+
+### Custom routes directory
+
+```typescript
+createApp({ config })
+  .withPlugins({ autoload: { dir: 'src/api' } })
+  // routes are now loaded from src/api/ instead of src/routes/
+  .build();
+```
+
+### Disable route autoload entirely
+
+```typescript
+createApp({ config })
+  .withPlugins({ autoload: false })
+  // you are responsible for registering all route plugins manually
+  .build();
+```
+
+### Custom schemas directory
+
+```typescript
+createApp({ config })
+  .withSchemas('src/my-schemas')
+  .build();
+```
+
+### Disable schema auto-registration
+
+```typescript
+createApp({ config })
+  .withSchemas(false)
+  .build();
+```
+
+<Callout type="info">
+When autoload is disabled, Telaio still sets up all other features (database, cache, auth, etc.) normally. You can register routes with `app.fastify.register()` after calling `app.start()`, or manage the full Fastify lifecycle yourself.
+</Callout>
