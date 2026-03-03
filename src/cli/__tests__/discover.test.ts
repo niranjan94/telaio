@@ -30,9 +30,7 @@ describe('discover', () => {
   }
 
   /** Writes a package.json with the given content. */
-  async function writePkg(
-    content: Record<string, unknown>,
-  ): Promise<void> {
+  async function writePkg(content: Record<string, unknown>): Promise<void> {
     await fs.writeFile(
       path.join(tmpDir, 'package.json'),
       JSON.stringify(content),

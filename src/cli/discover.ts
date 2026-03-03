@@ -59,7 +59,9 @@ function hasTscAlias(cwd: string): boolean {
   if (!fs.existsSync(pkgPath)) return false;
 
   const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
-  return !!(pkg.devDependencies?.['tsc-alias'] || pkg.dependencies?.['tsc-alias']);
+  return !!(
+    pkg.devDependencies?.['tsc-alias'] || pkg.dependencies?.['tsc-alias']
+  );
 }
 
 /**
@@ -67,16 +69,12 @@ function hasTscAlias(cwd: string): boolean {
  * Uses tsconfig.build.json if available, chains tsc-alias if installed.
  */
 function buildTscCommand(cwd: string): string {
-  const hasBuildTsconfig = fs.existsSync(
-    path.join(cwd, 'tsconfig.build.json'),
-  );
+  const hasBuildTsconfig = fs.existsSync(path.join(cwd, 'tsconfig.build.json'));
   const projectFlag = hasBuildTsconfig ? ' -p tsconfig.build.json' : '';
   const tscCmd = `tsc --pretty false${projectFlag}`;
 
   if (hasTscAlias(cwd)) {
-    const aliasProjectFlag = hasBuildTsconfig
-      ? ' -p tsconfig.build.json'
-      : '';
+    const aliasProjectFlag = hasBuildTsconfig ? ' -p tsconfig.build.json' : '';
     return `${tscCmd} && tsc-alias${aliasProjectFlag}`;
   }
 

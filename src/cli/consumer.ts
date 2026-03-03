@@ -1,6 +1,6 @@
 import type { Command } from 'commander';
-import { readTelaioConfig } from './config.js';
-import { resolveCliConfig } from './resolve-config.js';
+import { discoverConsumerRegistry } from './discover.js';
+import { loadCliMetadata, resolveCliConfig } from './resolve-config.js';
 
 /** Registers the `telaio consumer` CLI command. */
 export function registerConsumerCommand(program: Command): void {
@@ -14,12 +14,15 @@ export function registerConsumerCommand(program: Command): void {
     .action(async (options: { registry?: string }) => {
       const cwd = process.cwd();
       const appConfig = await resolveCliConfig(cwd);
-      const telaioConfig = readTelaioConfig(cwd);
-      const registryPath = options.registry ?? telaioConfig.consumer?.registry;
+      const metadata = await loadCliMetadata(cwd);
+
+      // Resolve registry: CLI flag > auto-discover (metadata + convention)
+      const registryPath =
+        options.registry ?? discoverConsumerRegistry(cwd, metadata);
 
       if (!registryPath) {
         throw new Error(
-          'telaio: consumer requires a registry path. Set telaio.consumer.registry in package.json or pass --registry.',
+          'telaio: consumer requires a registry path. Set consumer.registry in defineConfig() or pass --registry.',
         );
       }
 

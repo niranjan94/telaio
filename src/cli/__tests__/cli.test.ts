@@ -9,10 +9,10 @@ import { registerDbTypesCommand } from '../db-types.js';
 import {
   matchesIncludePatterns,
   parseAddFlag,
-  readDevConfig,
   registerDevCommand,
+  stripAnsi,
 } from '../dev.js';
-import { registerGenClientCommand } from '../gen-client.js';
+import { registerGenClientCommand, resolveTelaioApp } from '../gen-client.js';
 import { registerInitCommand } from '../init.js';
 import { registerMigrateCommand } from '../migrate.js';
 
@@ -266,92 +266,97 @@ describe('telaio dev helpers', () => {
     });
   });
 
-  describe('readDevConfig', () => {
+  describe('stripAnsi', () => {
+    it('removes ANSI color codes', () => {
+      expect(stripAnsi('\x1b[31mred text\x1b[0m')).toBe('red text');
+    });
+
+    it('removes multiple ANSI sequences', () => {
+      expect(stripAnsi('\x1b[1m\x1b[34mbold blue\x1b[0m normal')).toBe(
+        'bold blue normal',
+      );
+    });
+
+    it('passes through plain text unchanged', () => {
+      expect(stripAnsi('no colors here')).toBe('no colors here');
+    });
+
+    it('removes OSC sequences', () => {
+      expect(stripAnsi('\x1b]0;title\x07rest')).toBe('rest');
+    });
+  });
+
+  describe('resolveTelaioApp', () => {
     let tmpDir: string;
 
     beforeEach(async () => {
-      tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'telaio-dev-'));
+      tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'telaio-app-'));
     });
 
     afterEach(async () => {
       await fs.rm(tmpDir, { recursive: true, force: true });
     });
 
-    it('reads processes from package.json telaio.dev key', async () => {
-      const pkg = {
-        name: 'test',
-        telaio: {
-          dev: {
-            processes: [
-              { name: 'api', command: 'tsx watch src/server.ts' },
-              { name: 'types', command: 'tsc -w' },
-            ],
-          },
-        },
-      };
+    it('finds buildFastifyApp builder function', async () => {
       await fs.writeFile(
-        path.join(tmpDir, 'package.json'),
-        JSON.stringify(pkg),
+        path.join(tmpDir, 'app.mjs'),
+        `export function buildFastifyApp(ephemeral) {
+          return { fastify: { ready: async () => {}, close: async () => {} }, ephemeral };
+        }`,
         'utf-8',
       );
 
-      const config = readDevConfig(tmpDir);
-      expect(config.processes).toHaveLength(2);
-      expect(config.processes?.[0]?.name).toBe('api');
+      const app = await resolveTelaioApp('app.mjs', tmpDir);
+      expect(app.fastify).toBeDefined();
     });
 
-    it('returns empty config when telaio.dev is missing', async () => {
+    it('finds buildApp builder function', async () => {
       await fs.writeFile(
-        path.join(tmpDir, 'package.json'),
-        JSON.stringify({ name: 'test' }),
+        path.join(tmpDir, 'app.mjs'),
+        `export function buildApp(ephemeral) {
+          return { fastify: { ready: async () => {}, close: async () => {} }, ephemeral };
+        }`,
         'utf-8',
       );
 
-      const config = readDevConfig(tmpDir);
-      expect(config).toEqual({});
+      const app = await resolveTelaioApp('app.mjs', tmpDir);
+      expect(app.fastify).toBeDefined();
     });
 
-    it('returns empty config when package.json is missing', () => {
-      const config = readDevConfig(path.join(tmpDir, 'nonexistent'));
-      expect(config).toEqual({});
-    });
-
-    it('reads expanded config with watch, stripAnsi, and output', async () => {
-      const pkg = {
-        name: 'test',
-        telaio: {
-          dev: {
-            processes: [
-              {
-                name: 'api',
-                command: 'tsx src/server.ts',
-                prefixColor: 'cyan',
-              },
-            ],
-            watch: {
-              include: ['src', '.env'],
-              ignore: ['node_modules', 'dist'],
-              debounceMs: 500,
-            },
-            stripAnsi: true,
-            output: 'output.log',
-          },
-        },
-      };
+    it('finds default export as builder function', async () => {
       await fs.writeFile(
-        path.join(tmpDir, 'package.json'),
-        JSON.stringify(pkg),
+        path.join(tmpDir, 'app.mjs'),
+        `export default function(ephemeral) {
+          return { fastify: { ready: async () => {}, close: async () => {} }, ephemeral };
+        }`,
         'utf-8',
       );
 
-      const config = readDevConfig(tmpDir);
-      expect(config.processes).toHaveLength(1);
-      expect(config.processes?.[0]?.prefixColor).toBe('cyan');
-      expect(config.watch?.include).toEqual(['src', '.env']);
-      expect(config.watch?.ignore).toEqual(['node_modules', 'dist']);
-      expect(config.watch?.debounceMs).toBe(500);
-      expect(config.stripAnsi).toBe(true);
-      expect(config.output).toBe('output.log');
+      const app = await resolveTelaioApp('app.mjs', tmpDir);
+      expect(app.fastify).toBeDefined();
+    });
+
+    it('falls back to pre-built app export', async () => {
+      await fs.writeFile(
+        path.join(tmpDir, 'app.mjs'),
+        `export const app = { fastify: { ready: async () => {}, close: async () => {} } };`,
+        'utf-8',
+      );
+
+      const app = await resolveTelaioApp('app.mjs', tmpDir);
+      expect(app.fastify).toBeDefined();
+    });
+
+    it('throws when no app found', async () => {
+      await fs.writeFile(
+        path.join(tmpDir, 'app.mjs'),
+        `export const nothing = 42;`,
+        'utf-8',
+      );
+
+      await expect(resolveTelaioApp('app.mjs', tmpDir)).rejects.toThrow(
+        'could not find a TelaioApp',
+      );
     });
   });
 
