@@ -39,7 +39,7 @@ Consider setting up a Fastify app with a database pool and Redis cache:
 // Raw Fastify -- manual wiring (simplified, real projects are worse)
 import Fastify from 'fastify';
 import pg from 'pg';
-import Redis from 'ioredis';
+import Redis from 'redis';
 
 const pool = new pg.Pool({
   host: process.env.DB_HOST,
