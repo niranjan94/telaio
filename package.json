@@ -1,6 +1,6 @@
 {
   "name": "telaio",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "A highly configurable, TypeScript-first Fastify framework",
   "type": "module",
   "files": [
@@ -99,7 +99,7 @@
     "type": "git",
     "url": "git+https://github.com/niranjan94/telaio.git"
   },
-  "homepage": "https://github.com/niranjan94/telaio#readme",
+  "homepage": "https://telaio.niranjan.io",
   "bugs": {
     "url": "https://github.com/niranjan94/telaio/issues"
   },
