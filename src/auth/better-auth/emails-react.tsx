@@ -12,9 +12,7 @@ export async function renderEmailVerificationReact(
       <>
         <p>{`Hello ${vars.name ?? 'there'},`}</p>
         <p>Welcome to {vars.appName}!</p>
-        <p>
-          Please verify your email address by clicking the button below.
-        </p>
+        <p>Please verify your email address by clicking the button below.</p>
       </>
     ),
     heading: 'Verify Email',
@@ -34,9 +32,7 @@ export async function renderMagicLinkReact(
     content: (
       <>
         <p>Hello,</p>
-        <p>
-          Click the button below to sign in to your {vars.appName} account.
-        </p>
+        <p>Click the button below to sign in to your {vars.appName} account.</p>
         <p>
           This link will expire in 10 minutes for security reasons. If you
           didn't request this, you can safely ignore this email.

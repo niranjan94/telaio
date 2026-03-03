@@ -19,16 +19,16 @@ export { type BetterAuthEnvConfig, betterAuthConfigSchema } from './config.js';
 
 // Email templates
 export {
+  createSESEmailSender,
   type EmailCallbackOptions,
   type EmailSender,
   type EmailTemplateVars,
-  type SESEmailSenderOptions,
-  createSESEmailSender,
   emailVerificationCallbacks,
   magicLinkCallbacks,
   renderBaseLayout,
   renderEmailVerification,
   renderMagicLink,
+  type SESEmailSenderOptions,
 } from './emails.js';
 
 // React Email renderers (opt-in, requires @daveyplate/better-auth-ui + @react-email/components)

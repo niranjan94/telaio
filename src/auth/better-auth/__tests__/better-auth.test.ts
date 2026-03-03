@@ -632,9 +632,7 @@ describe('createSESEmailSender', () => {
 
 describe('renderEmailVerificationReact', () => {
   it('returns HTML string containing key content', async () => {
-    const { renderEmailVerificationReact } = await import(
-      '../emails-react.js'
-    );
+    const { renderEmailVerificationReact } = await import('../emails-react.js');
     const html = await renderEmailVerificationReact({
       appName: 'TestApp',
       url: 'https://example.com/verify',
@@ -649,9 +647,7 @@ describe('renderEmailVerificationReact', () => {
   });
 
   it('handles missing name gracefully', async () => {
-    const { renderEmailVerificationReact } = await import(
-      '../emails-react.js'
-    );
+    const { renderEmailVerificationReact } = await import('../emails-react.js');
     const html = await renderEmailVerificationReact({
       appName: 'TestApp',
       url: 'https://example.com/verify',
