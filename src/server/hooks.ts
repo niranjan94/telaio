@@ -19,8 +19,8 @@ export async function registerHooks(
   options: {
     logger: Logger;
     tempFiles?: boolean;
-    onReady?: () => Promise<void>;
-    onClose?: () => Promise<void>;
+    onReady?: Array<() => Promise<void>>;
+    onClose?: Array<() => Promise<void>>;
   },
 ) {
   const { logger, onReady, onClose } = options;
@@ -174,10 +174,14 @@ export async function registerHooks(
   });
 
   if (onReady) {
-    server.addHook('onReady', onReady);
+    for (const fn of onReady) {
+      server.addHook('onReady', fn);
+    }
   }
   if (onClose) {
-    server.addHook('onClose', onClose);
+    for (const fn of onClose) {
+      server.addHook('onClose', fn);
+    }
   }
 
   server.get('/healthz', async () => {

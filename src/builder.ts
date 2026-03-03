@@ -93,8 +93,8 @@ export class AppBuilder<
   private _authAdapter: AuthAdapter<any> | null = null;
   private _queueRegistry: QueueRegistry | null = null;
   private _queueOptions: WithQueueOptions | null = null;
-  private _onReady: (() => Promise<void>) | null = null;
-  private _onClose: (() => Promise<void>) | null = null;
+  private _onReady: Array<() => Promise<void>> = [];
+  private _onClose: Array<() => Promise<void>> = [];
   private _ephemeral = false;
   private _tempFiles = false;
 
@@ -197,15 +197,15 @@ export class AppBuilder<
     return this;
   }
 
-  /** Register a callback to run when the server is ready. */
+  /** Register a callback to run when the server is ready. Multiple calls register multiple callbacks. */
   onReady(fn: () => Promise<void>): AppBuilder<F, TSession, TConfig> {
-    this._onReady = fn;
+    this._onReady.push(fn);
     return this;
   }
 
-  /** Register a callback to run when the server is closing. */
+  /** Register a callback to run when the server is closing. Multiple calls register multiple callbacks. */
   onClose(fn: () => Promise<void>): AppBuilder<F, TSession, TConfig> {
-    this._onClose = fn;
+    this._onClose.push(fn);
     return this;
   }
 
@@ -349,8 +349,8 @@ export class AppBuilder<
       await registerHooks(app, {
         logger,
         tempFiles: this._tempFiles,
-        onReady: this._onReady ?? undefined,
-        onClose: this._onClose ?? undefined,
+        onReady: this._onReady.length > 0 ? this._onReady : undefined,
+        onClose: this._onClose.length > 0 ? this._onClose : undefined,
       });
     }
 
