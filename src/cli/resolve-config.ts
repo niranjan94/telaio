@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import {
+  type CliMetadata,
+  extractCliMetadata,
   isDefineConfigResult,
   loadConfigAsync,
   loadEnv,
@@ -13,6 +15,9 @@ const CONFIG_EXTENSIONS = ['.ts', '.js', '.mts', '.mjs'];
 
 /** Per-cwd cache of resolved config objects. */
 const configCache = new Map<string, Record<string, unknown>>();
+
+/** Per-cwd cache of CLI metadata (no env loading). */
+const metadataCache = new Map<string, CliMetadata>();
 
 /**
  * Finds the telaio config file in the given directory.
@@ -50,6 +55,70 @@ export function findConfigFile(cwd: string): string | null {
   }
 
   return null;
+}
+
+/**
+ * Loads CLI metadata from a defineConfig result without loading env vars.
+ * Falls back to reading the telaio key from package.json (with deprecation warning).
+ * Results are cached per cwd.
+ */
+export async function loadCliMetadata(cwd: string): Promise<CliMetadata> {
+  const cached = metadataCache.get(cwd);
+  if (cached) return cached;
+
+  const configFile = findConfigFile(cwd);
+
+  let metadata: CliMetadata;
+
+  if (configFile) {
+    const mod = await import(new URL(`file://${configFile}`).href);
+    const exported = mod.default ?? mod;
+
+    if (isDefineConfigResult(exported)) {
+      metadata = extractCliMetadata(exported);
+    } else {
+      // Config file exists but isn't branded -- fall back to package.json
+      metadata = readTelaioConfigAsMetadata(cwd);
+    }
+  } else {
+    metadata = readTelaioConfigAsMetadata(cwd);
+  }
+
+  metadataCache.set(cwd, metadata);
+  return metadata;
+}
+
+/**
+ * Reads the telaio key from package.json and converts it to CliMetadata.
+ * Emits a deprecation warning when the key is found.
+ */
+function readTelaioConfigAsMetadata(cwd: string): CliMetadata {
+  const pkgConfig = readTelaioConfig(cwd);
+
+  if (
+    pkgConfig.app ||
+    pkgConfig.client ||
+    pkgConfig.consumer ||
+    pkgConfig.dev
+  ) {
+    console.warn(
+      'telaio: the "telaio" key in package.json is deprecated. ' +
+        'Move CLI config into defineConfig() in telaio.config.ts instead.',
+    );
+  }
+
+  return {
+    app: pkgConfig.app,
+    client: pkgConfig.client,
+    consumer: pkgConfig.consumer,
+    dev: pkgConfig.dev
+      ? {
+          processes: pkgConfig.dev.processes,
+          watch: pkgConfig.dev.watch,
+          output: pkgConfig.dev.output,
+        }
+      : undefined,
+  };
 }
 
 /**
@@ -96,7 +165,8 @@ export async function resolveCliConfig(
   return resolved;
 }
 
-/** Resets the config cache. For testing only. */
+/** Resets the config and metadata caches. For testing only. */
 export function _resetConfigCache(): void {
   configCache.clear();
+  metadataCache.clear();
 }
