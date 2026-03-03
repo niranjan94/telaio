@@ -59,9 +59,9 @@ export function buildAuthPlugin<TSession>(
           if (errorRedirectUrl && request.url === `${basePath}/error`) {
             const errorParam =
               (request.query as Record<string, string>).error ?? 'unknown';
-            return reply.redirect(
-              `${errorRedirectUrl}?error=${encodeURIComponent(errorParam)}`,
-            );
+            const redirectUrl = new URL(errorRedirectUrl);
+            redirectUrl.searchParams.set('error', errorParam);
+            return reply.redirect(redirectUrl.toString());
           }
 
           const url = new URL(request.url, `http://${request.headers.host}`);
