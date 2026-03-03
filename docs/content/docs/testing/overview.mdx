@@ -1,0 +1,54 @@
+---
+title: Testing Strategy
+description: Telaio's four-tier testing strategy covering unit, integration, type, and E2E tests.
+---
+
+# Testing Strategy
+
+Telaio organises tests into four distinct tiers. Each tier has a specific scope, infrastructure requirement, and execution speed. Running all four together forms the complete quality gate before shipping.
+
+## The four tiers
+
+| Tier | Location | Infrastructure | Command |
+|------|----------|---------------|---------|
+| Unit | `src/**/__tests__/` | None | `pnpm test:unit` |
+| Integration | `tests/` | Mocked | `pnpm test:integration` |
+| Type | `tests/` | None | `pnpm test:types` |
+| E2E | `tests/` | Docker (real containers) | `pnpm test:e2e` |
+
+## Quality gate
+
+Run the full quality gate after every significant change:
+
+```bash
+pnpm run format && pnpm run build && pnpm run test && pnpm run test:integration
+```
+
+This catches formatting issues, type errors, broken logic, and broken HTTP contracts all in one pass. E2E tests (`pnpm test:e2e`) are excluded from the default gate because they require Docker; run them explicitly before releases or in CI environments that have Docker available.
+
+To run everything sequentially in one command:
+
+```bash
+pnpm run test:all
+```
+
+## When to use each tier
+
+**Unit tests** are the default choice. Write a unit test whenever you can exercise a function or module in isolation without standing up a server or database. They run in milliseconds, have no external dependencies, and give pinpoint failure messages.
+
+**Integration tests** are for HTTP contracts. Use them when you need to verify that a route handler returns the right status code, response shape, or headers. They use `app.fastify.inject()` to fire HTTP requests without binding to a port, and they mock infrastructure (database, cache) with in-process fakes.
+
+**Type tests** verify compile-time behaviour that cannot be observed at runtime. Use them when you add a new builder method or change a conditional type and want to assert that TypeScript accepts valid usage and rejects invalid usage. They run through Vitest's typecheck mode and produce no executable output.
+
+**E2E tests** are for full system verification. They spin up real Postgres and Redis containers via `testcontainers`, run migrations, start the app, and fire real HTTP requests. Reserve them for critical paths and smoke tests. They require Docker and are meaningfully slower than the other three tiers.
+
+## File naming
+
+| Tier | Pattern |
+|------|---------|
+| Unit | `src/some-module/__tests__/some-module.test.ts` |
+| Integration | `tests/routes/some-route.test.ts` |
+| Type | `tests/types/some-feature.test-d.ts` |
+| E2E | `tests/e2e/some-scenario.test.ts` |
+
+Type test files use the `.test-d.ts` suffix by convention -- Vitest's typecheck mode picks them up regardless of suffix, but the `d` signals to readers that the file contains type-level assertions only.

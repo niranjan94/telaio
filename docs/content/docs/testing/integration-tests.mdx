@@ -1,0 +1,191 @@
+---
+title: Integration Tests
+description: HTTP-level integration testing with app.fastify.inject() and mocked infrastructure.
+---
+
+# Integration Tests
+
+Integration tests live in `tests/` and verify HTTP contracts at the route level. They use Fastify's built-in `inject()` method to fire requests without binding to a real port, and they use mocked or in-memory infrastructure so no Docker is required.
+
+## Running integration tests
+
+```bash
+pnpm run test:integration
+```
+
+## Setting up a test app
+
+The key difference from production setup is `skipEnvLoad: true` and an inline `source` object. This prevents `loadConfig` from reading `.env` files or real environment variables during tests:
+
+```typescript
+// tests/routes/users.test.ts
+import { describe, it, expect, beforeAll } from 'vitest';
+import { createApp, loadConfig } from 'telaio';
+
+const config = loadConfig({
+  source: {
+    DATABASE_URL: process.env.TEST_DATABASE_URL ?? 'postgresql://localhost/test',
+    NODE_ENV: 'test',
+  },
+  skipEnvLoad: true,
+});
+
+let app: Awaited<ReturnType<typeof buildTestApp>>;
+
+async function buildTestApp() {
+  return createApp({ config })
+    .withPlugins({ autoload: false })  // disable route autoload for controlled setup
+    .withSchemas(false)                // skip schema autoload
+    .build();
+}
+
+beforeAll(async () => {
+  app = await buildTestApp();
+});
+
+it('GET /healthz returns ok', async () => {
+  const response = await app.fastify.inject({
+    method: 'GET',
+    url: '/healthz',
+  });
+  expect(response.statusCode).toBe(200);
+  expect(response.json()).toEqual({ status: 'ok' });
+});
+```
+
+## Using inject()
+
+`app.fastify.inject()` accepts a full request descriptor and returns a `LightMyRequest` response object:
+
+```typescript
+// GET with query parameters
+const res = await app.fastify.inject({
+  method: 'GET',
+  url: '/users',
+  query: { status: 'active', limit: '20' },
+});
+
+// POST with JSON body
+const res = await app.fastify.inject({
+  method: 'POST',
+  url: '/users',
+  headers: { 'content-type': 'application/json' },
+  body: JSON.stringify({ name: 'Alice', email: 'alice@example.com' }),
+});
+
+// With authentication headers
+const res = await app.fastify.inject({
+  method: 'GET',
+  url: '/profile',
+  headers: { authorization: 'Bearer test-token' },
+});
+
+// Response helpers
+res.statusCode      // number
+res.json()          // parsed JSON body
+res.headers         // response headers object
+res.body            // raw string body
+```
+
+## Testing with a database
+
+For routes that need a real database, provide a test database connection. The `withDatabase()` builder method accepts pre-built instances, so you can point it at a test database:
+
+```typescript
+import { createPool, createDatabase } from 'telaio/db';
+import { createApp, loadConfig } from 'telaio';
+import { afterAll, beforeAll } from 'vitest';
+
+const config = loadConfig({
+  source: {
+    DATABASE_URL: process.env.TEST_DATABASE_URL ?? 'postgresql://localhost/test',
+    NODE_ENV: 'test',
+  },
+  skipEnvLoad: true,
+});
+
+let app: Awaited<ReturnType<typeof buildTestApp>>;
+
+async function buildTestApp() {
+  const pool = await createPool(config);
+  const db = await createDatabase(pool);
+
+  return createApp({ config })
+    .withDatabase({ pool, db })
+    .withPlugins({ autoload: false })
+    .withSchemas(false)
+    .build();
+}
+
+beforeAll(async () => {
+  app = await buildTestApp();
+});
+
+afterAll(async () => {
+  await app.stop();
+});
+```
+
+<Callout type="warn">
+Never call both `app.stop()` (which calls `db.destroy()`) and `pool.end()` manually. `db.destroy()` already closes the underlying pool. Calling `pool.end()` afterwards will throw "Called end on pool more than once".
+</Callout>
+
+## Mocking external services
+
+For tests that should not connect to Redis or external APIs, mock the relevant modules:
+
+```typescript
+import { vi } from 'vitest';
+
+vi.mock('ioredis', () => ({
+  default: vi.fn().mockImplementation(() => ({
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn().mockResolvedValue('OK'),
+    del: vi.fn().mockResolvedValue(1),
+    quit: vi.fn().mockResolvedValue('OK'),
+  })),
+}));
+```
+
+Alternatively, pass `{ enabled: false }` to `withCache()` to use the no-op stub:
+
+```typescript
+createApp({ config })
+  .withDatabase({ pool, db })
+  .withCache({ enabled: false })
+  .withPlugins({ autoload: false })
+  .build();
+```
+
+## Test isolation
+
+Each test file should build its own app instance rather than sharing one across files. This prevents test order dependencies and makes failures easier to diagnose. Use `beforeAll` to build once per file and `afterAll` to tear down.
+
+If individual tests need a clean state, reset mocks with `vi.clearAllMocks()` in `beforeEach` and truncate database tables as needed.
+
+## Asserting JSON responses
+
+```typescript
+it('returns a list of users', async () => {
+  const res = await app.fastify.inject({
+    method: 'GET',
+    url: '/users',
+  });
+
+  expect(res.statusCode).toBe(200);
+
+  const body = res.json<{ data: Array<{ id: string; name: string }> }>();
+  expect(body.data).toBeInstanceOf(Array);
+  expect(body.data[0]).toMatchObject({ id: expect.any(String), name: expect.any(String) });
+});
+
+it('returns 404 for unknown user', async () => {
+  const res = await app.fastify.inject({
+    method: 'GET',
+    url: '/users/00000000-0000-0000-0000-000000000000',
+  });
+
+  expect(res.statusCode).toBe(404);
+  expect(res.json()).toMatchObject({ error: 'Not Found' });
+});
+```

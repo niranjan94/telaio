@@ -1,0 +1,176 @@
+---
+title: Type Tests
+description: Compile-time type assertions using Vitest's typecheck mode, assertType, and expectTypeOf.
+---
+
+# Type Tests
+
+Type tests verify compile-time behaviour that cannot be observed at runtime. They use Vitest's typecheck mode to assert that TypeScript accepts valid usage and rejects invalid usage -- particularly important for Telaio's phantom-type system where feature flags determine which properties exist on `TelaioApp`.
+
+## Running type tests
+
+```bash
+pnpm run test:types
+```
+
+This runs `vitest run --typecheck.only`. Note the `--typecheck.only` flag -- do not use the old `vitest typecheck` subcommand, which no longer exists in Vitest 4.
+
+## File conventions
+
+Type test files live in `tests/types/` and use the `.test-d.ts` suffix by convention:
+
+```
+tests/
+  types/
+    builder.test-d.ts
+    config.test-d.ts
+    queue.test-d.ts
+```
+
+The `.test-d.ts` suffix signals to readers that the file contains only type-level assertions. Vitest's typecheck mode picks up any file matching the configured glob regardless of suffix.
+
+## Core helpers
+
+Import `assertType` and `expectTypeOf` from `vitest`:
+
+| Helper | Purpose |
+|--------|---------|
+| `assertType<T>(value)` | Asserts that `value` is assignable to `T` at compile time |
+| `expectTypeOf(value)` | Fluent type assertions (`.toEqualTypeOf`, `.toHaveProperty`, etc.) |
+| `// @ts-expect-error` | Asserts that the next line produces a TypeScript error |
+
+## Phantom type assertions
+
+The primary use case is verifying that builder phantom types work correctly:
+
+```typescript
+// tests/types/builder.test-d.ts
+import { describe, it, assertType, expectTypeOf } from 'vitest';
+import { createApp } from 'telaio';
+import type { TelaioApp } from 'telaio/types';
+
+describe('phantom type checks', () => {
+  it('default app has no pool or db', async () => {
+    const app = await createApp().build();
+
+    // @ts-expect-error -- pool is not present without .withDatabase()
+    app.pool;
+
+    // @ts-expect-error -- db is not present without .withDatabase()
+    app.db;
+  });
+
+  it('database app exposes pool and db', async () => {
+    const app = await createApp().withDatabase().build();
+
+    // These must not produce a type error:
+    assertType<typeof app.pool>(app.pool);
+    assertType<typeof app.db>(app.db);
+  });
+
+  it('cache app exposes cache', async () => {
+    const app = await createApp().withCache().build();
+
+    assertType<typeof app.cache>(app.cache);
+
+    // @ts-expect-error -- pool still not present
+    app.pool;
+  });
+
+  it('withAuth narrows session type', async () => {
+    interface MySession {
+      userId: string;
+      role: 'admin' | 'user';
+    }
+
+    const adapter = {
+      getSession: async (): Promise<MySession> => ({ userId: 'u1', role: 'user' }),
+    };
+
+    const app = await createApp().withAuth(adapter).build();
+
+    // auth.session is typed as MySession
+    expectTypeOf(app.auth.session).toEqualTypeOf<MySession>();
+  });
+});
+```
+
+## Testing expected compile errors with @ts-expect-error
+
+`@ts-expect-error` asserts that the next line will produce a TypeScript diagnostic. If the line does not produce an error, TypeScript itself reports an error on the `@ts-expect-error` comment -- so the assertion is bidirectional.
+
+```typescript
+it('cannot access queue without withQueues()', async () => {
+  const app = await createApp().withDatabase().build();
+
+  // @ts-expect-error -- queue is not in the feature set
+  app.queue;
+});
+```
+
+If you remove `.withDatabase()` in the future and the test still passes, the `@ts-expect-error` would be wrong. TypeScript will catch that.
+
+## Asserting config shapes
+
+```typescript
+// tests/types/config.test-d.ts
+import { describe, it, expectTypeOf } from 'vitest';
+import { loadConfig } from 'telaio';
+
+describe('InferConfig', () => {
+  it('includes database fields when database module is enabled', () => {
+    const config = loadConfig({
+      modules: { database: true },
+      source: { DATABASE_URL: 'postgresql://localhost/test' },
+      skipEnvLoad: true,
+    });
+
+    expectTypeOf(config.DATABASE_URL).toEqualTypeOf<string>();
+    expectTypeOf(config.NODE_ENV).toEqualTypeOf<'development' | 'production' | 'test'>();
+  });
+
+  it('does not include cache fields when cache module is disabled', () => {
+    const config = loadConfig({
+      modules: { database: true },
+      source: {},
+      skipEnvLoad: true,
+    });
+
+    // @ts-expect-error -- REDIS_URL is not on a config without cache module
+    config.REDIS_URL;
+  });
+});
+```
+
+## Asserting queue payload types
+
+```typescript
+// tests/types/queue.test-d.ts
+import { describe, it, expectTypeOf } from 'vitest';
+import type { JobDataFor, QueueRegistry, QueueJobHandler } from 'telaio/queue';
+import type { Job } from 'pg-boss';
+
+interface SendWelcomeEmailData {
+  userId: string;
+  email: string;
+}
+
+const registry = {
+  'send-welcome-email': async (jobs: Job<SendWelcomeEmailData>[]) => {
+    // handler
+  },
+} satisfies QueueRegistry;
+
+describe('JobDataFor', () => {
+  it('extracts the correct payload type', () => {
+    type Payload = JobDataFor<typeof registry, 'send-welcome-email'>;
+    expectTypeOf<Payload>().toEqualTypeOf<SendWelcomeEmailData>();
+  });
+});
+```
+
+## Guidelines
+
+- Do not import heavy runtime modules speculatively -- type tests run through the TypeScript compiler but Vitest may still attempt to resolve imports. Keep imports to type-only where possible using `import type`.
+- A type test file that contains no `@ts-expect-error` and no `assertType`/`expectTypeOf` calls is not testing anything useful. Every test should have at least one assertion.
+- Type tests are fast (compiler only, no execution) and should be added whenever a new generic or conditional type is introduced.
