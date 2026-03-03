@@ -6,7 +6,12 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { registerBuildCommand } from '../build.js';
 import { readTelaioConfig } from '../config.js';
 import { registerDbTypesCommand } from '../db-types.js';
-import { parseAddFlag, readDevConfig, registerDevCommand } from '../dev.js';
+import {
+  matchesIncludePatterns,
+  parseAddFlag,
+  readDevConfig,
+  registerDevCommand,
+} from '../dev.js';
 import { registerGenClientCommand } from '../gen-client.js';
 import { registerInitCommand } from '../init.js';
 import { registerMigrateCommand } from '../migrate.js';
@@ -62,7 +67,7 @@ describe('CLI command registration', () => {
     const cmd = program.commands.find((c) => c.name() === 'dev');
     expect(cmd).toBeDefined();
     expect(cmd?.description()).toBe(
-      'Run development processes concurrently with prefixed output',
+      'Run development processes with centralized file watching and auto-restart',
     );
   });
 });
@@ -295,7 +300,7 @@ describe('telaio dev helpers', () => {
       expect(config.processes?.[0]?.name).toBe('api');
     });
 
-    it('returns empty processes when telaio.dev is missing', async () => {
+    it('returns empty config when telaio.dev is missing', async () => {
       await fs.writeFile(
         path.join(tmpDir, 'package.json'),
         JSON.stringify({ name: 'test' }),
@@ -303,12 +308,85 @@ describe('telaio dev helpers', () => {
       );
 
       const config = readDevConfig(tmpDir);
-      expect(config.processes).toEqual([]);
+      expect(config).toEqual({});
     });
 
-    it('returns empty processes when package.json is missing', () => {
+    it('returns empty config when package.json is missing', () => {
       const config = readDevConfig(path.join(tmpDir, 'nonexistent'));
-      expect(config.processes).toEqual([]);
+      expect(config).toEqual({});
+    });
+
+    it('reads expanded config with watch, stripAnsi, and output', async () => {
+      const pkg = {
+        name: 'test',
+        telaio: {
+          dev: {
+            processes: [
+              {
+                name: 'api',
+                command: 'tsx src/server.ts',
+                prefixColor: 'cyan',
+              },
+            ],
+            watch: {
+              include: ['src', '.env'],
+              ignore: ['node_modules', 'dist'],
+              debounceMs: 500,
+            },
+            stripAnsi: true,
+            output: 'output.log',
+          },
+        },
+      };
+      await fs.writeFile(
+        path.join(tmpDir, 'package.json'),
+        JSON.stringify(pkg),
+        'utf-8',
+      );
+
+      const config = readDevConfig(tmpDir);
+      expect(config.processes).toHaveLength(1);
+      expect(config.processes?.[0]?.prefixColor).toBe('cyan');
+      expect(config.watch?.include).toEqual(['src', '.env']);
+      expect(config.watch?.ignore).toEqual(['node_modules', 'dist']);
+      expect(config.watch?.debounceMs).toBe(500);
+      expect(config.stripAnsi).toBe(true);
+      expect(config.output).toBe('output.log');
+    });
+  });
+
+  describe('matchesIncludePatterns', () => {
+    const cwd = '/project';
+
+    it('matches files inside an included directory', () => {
+      expect(
+        matchesIncludePatterns('/project/src/foo/bar.ts', ['src'], cwd),
+      ).toBe(true);
+    });
+
+    it('matches exact file paths', () => {
+      expect(matchesIncludePatterns('/project/.env', ['.env'], cwd)).toBe(true);
+    });
+
+    it('does not match files outside included patterns', () => {
+      expect(
+        matchesIncludePatterns('/project/dist/index.js', ['src', '.env'], cwd),
+      ).toBe(false);
+    });
+
+    it('does not match partial directory names', () => {
+      expect(
+        matchesIncludePatterns('/project/src-backup/file.ts', ['src'], cwd),
+      ).toBe(false);
+    });
+
+    it('handles multiple patterns', () => {
+      expect(
+        matchesIncludePatterns('/project/.env', ['src', '.env'], cwd),
+      ).toBe(true);
+      expect(
+        matchesIncludePatterns('/project/src/app.ts', ['src', '.env'], cwd),
+      ).toBe(true);
     });
   });
 });

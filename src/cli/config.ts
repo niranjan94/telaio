@@ -18,7 +18,27 @@ export interface TelaioConfig {
     registry?: string;
   };
   /** Dev process config. */
-  dev?: { processes?: { name: string; command: string }[] };
+  dev?: {
+    processes?: {
+      name: string;
+      command: string;
+      /** ANSI color for the prefix label. */
+      prefixColor?: string;
+    }[];
+    /** File watcher configuration for centralized restart. */
+    watch?: {
+      /** Paths/patterns that trigger restarts. Default: ['src', '.env']. */
+      include?: string[];
+      /** Paths to exclude from watching. Default: ['node_modules', '.git', 'dist']. */
+      ignore?: string[];
+      /** Debounce interval in ms. Default: 300. */
+      debounceMs?: number;
+    };
+    /** Strip ANSI escape codes from output. Default: false. */
+    stripAnsi?: boolean;
+    /** Log file path to tee output to. */
+    output?: string;
+  };
 }
 
 /**
