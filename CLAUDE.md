@@ -23,7 +23,7 @@ src/
   builder.ts          # AppBuilder — fluent API, phantom-typed features
   types.ts            # TelaioApp<F, TSession, TConfig> conditional type
   index.ts            # Public API re-exports
-  config/             # Composable Zod config with module flags
+  config/             # Composable Zod config with modules
   db/                 # createPool, createDatabase, Kysely migrations
   cache/              # Redis wrapper with graceful disabled mode
   queue/              # pg-boss typed producer/consumer
