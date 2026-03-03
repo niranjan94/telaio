@@ -1,0 +1,273 @@
+---
+title: Config API Reference
+description: Complete reference for loadConfig(), defineConfig(), InferConfig, and all configuration environment variables.
+---
+
+# Config API Reference
+
+## loadConfig()
+
+```typescript
+function loadConfig<const TModules extends ConfigModules, TExtend extends z.ZodType>(
+  options?: LoadConfigOptions<TModules, TExtend>
+): InferConfig<TModules, TExtend>
+```
+
+Synchronously loads, validates, and returns the config. Reads environment variables from the process environment and, by default, from a `.env` file via `dotenv`. Returns a plain record typed as `InferConfig<TModules, TExtend>`.
+
+```typescript
+import { loadConfig } from 'telaio';
+
+const config = loadConfig({
+  modules: { server: true, database: true },
+});
+```
+
+For tests, bypass `.env` loading entirely with `skipEnvLoad` and supply values inline:
+
+```typescript
+const config = loadConfig({
+  source: {
+    DATABASE_URL: 'postgresql://localhost/test',
+    NODE_ENV: 'test',
+  },
+  skipEnvLoad: true,
+});
+```
+
+---
+
+## loadConfigAsync()
+
+```typescript
+async function loadConfigAsync<const TModules extends ConfigModules, TExtend extends z.ZodType>(
+  options?: LoadConfigOptions<TModules, TExtend>
+): Promise<InferConfig<TModules, TExtend>>
+```
+
+Async variant of `loadConfig()`. Use when you need async `.env` resolution or are in an async context. API is identical to `loadConfig()`.
+
+---
+
+## defineConfig()
+
+```typescript
+function defineConfig<const TModules extends ConfigModules, TExtend extends z.ZodType>(
+  options: DefineConfigOptions<TModules, TExtend>
+): DefineConfigResult<TModules, TExtend>
+```
+
+Defines a config factory for use in `config.ts` files. Returns a callable that accepts an optional source override, enabling the same config definition to be reused in both production (reads env) and tests (inline source).
+
+```typescript
+// src/config.ts
+import { defineConfig } from 'telaio';
+import { z } from 'zod';
+
+export default defineConfig({
+  modules: { server: true, database: true, cache: true },
+  extend: z.object({
+    STRIPE_SECRET_KEY: z.string(),
+  }),
+});
+```
+
+```typescript
+// In app entry point:
+import config from './config.js';
+const loaded = config();
+
+// In tests:
+const loaded = config({ source: { DATABASE_URL: '...', STRIPE_SECRET_KEY: 'sk_test_...' }, skipEnvLoad: true });
+```
+
+---
+
+## InferConfig\<TModules, TExtend\>
+
+```typescript
+type InferConfig<TModules, TExtend extends z.ZodType> =
+  CoreConfig &
+  (TModules['server'] extends true ? ServerConfig : unknown) &
+  (TModules['database'] extends true ? DatabaseConfig : unknown) &
+  (TModules['cache'] extends true ? CacheConfig : unknown) &
+  (TModules['queue'] extends true ? QueueConfig : unknown) &
+  (TModules['s3'] extends true ? S3Config : unknown) &
+  (TModules['email'] extends true ? EmailConfig : unknown) &
+  z.infer<TExtend>
+```
+
+Conditional utility type that assembles the config type from enabled modules. Each module flag adds the corresponding typed fields to the intersection.
+
+<Callout type="warn">
+`InferConfig<Modules, never>` collapses to `never` in Zod v4. Never use this generic directly with `never` as `TExtend`. Use `loadConfig()` with defaults or pass `z.object({})` as the extend type.
+</Callout>
+
+---
+
+## ConfigModules
+
+```typescript
+interface ConfigModules {
+  server?: boolean;
+  database?: boolean;
+  cache?: boolean;
+  queue?: boolean;
+  s3?: boolean;
+  email?: boolean;
+}
+```
+
+Flags that opt into additional environment variable groups. Each flag set to `true` adds the corresponding config schema fields to the returned type and validation.
+
+---
+
+## LoadConfigOptions
+
+```typescript
+interface LoadConfigOptions<TModules, TExtend extends z.ZodType> {
+  modules?: TModules;
+  extend?: TExtend;
+  skipEnvLoad?: boolean;
+  source?: Record<string, unknown>;
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `modules` | `ConfigModules` | `{}` | Which module schemas to include |
+| `extend` | `z.ZodType` | `z.object({})` | Additional Zod schema to merge into validation |
+| `skipEnvLoad` | `boolean` | `false` | Skip `.env` file loading (for tests) |
+| `source` | `Record<string, unknown>` | `process.env` | Override environment variable source entirely |
+
+---
+
+## DefineConfigOptions
+
+```typescript
+interface DefineConfigOptions<TModules, TExtend extends z.ZodType> {
+  modules?: TModules;
+  extend?: TExtend;
+}
+```
+
+Same as `LoadConfigOptions` minus `skipEnvLoad` and `source`, which are supplied at call time.
+
+---
+
+## Config schema types
+
+### CoreConfig
+
+Always present. No module flag required.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `APP_NAME` | `string` | `'App'` | Application name |
+| `NODE_ENV` | `'development' \| 'production' \| 'test'` | `'development'` | Runtime environment |
+| `BASE_DIR` | `string` | `process.cwd()` | Base filesystem directory |
+
+### ServerConfig
+
+Enabled with `modules: { server: true }`.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `API_URL` | `string` (URL) | `'http://localhost:4001'` | Public API base URL |
+| `API_LISTEN_PORT` | `number` | `4001` | Port to listen on |
+| `API_LISTEN_ADDRESS` | `string` | `'0.0.0.0'` | Host address to bind |
+| `CORS_ORIGINS` | `string[]` | `[]` | Allowed CORS origins (comma-separated in env) |
+| `WHITELIST_PROXIES` | `string[]` | `[]` | Trusted proxy IPs (comma-separated in env) |
+| `ENABLE_API_DOCS` | `boolean` | `false` | Whether to mount the Scalar API reference UI |
+
+### DatabaseConfig
+
+Enabled with `modules: { database: true }`.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `DATABASE_URL` | `string` (URL) | `'postgresql://localhost/app'` | Postgres connection URI |
+| `DATABASE_SSL` | `boolean \| undefined` | `undefined` | Force SSL. Auto-detected for RDS hostnames. |
+
+### CacheConfig
+
+Enabled with `modules: { cache: true }`.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `REDIS_ENABLED` | `boolean` | `true` | Whether to connect to Redis |
+| `REDIS_URL` | `string \| undefined` | `undefined` | Redis connection URI |
+
+### QueueConfig
+
+Enabled with `modules: { queue: true }`.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `QUEUE_SCHEMA` | `string` | `'pgboss'` | Postgres schema for pg-boss tables |
+
+### S3Config
+
+Enabled with `modules: { s3: true }`.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `AWS_S3_REGION` | `string` | `'us-east-1'` | AWS region for S3 |
+| `AWS_S3_BUCKET_NAME` | `string` | `'assets'` | Default S3 bucket name |
+| `AWS_S3_ENDPOINT` | `string \| undefined` | `undefined` | Custom S3 endpoint (for LocalStack, MinIO, etc.) |
+| `AWS_S3_ACCESS_KEY_ID` | `string \| undefined` | `undefined` | AWS access key ID |
+| `AWS_S3_SECRET_ACCESS_KEY` | `string \| undefined` | `undefined` | AWS secret access key |
+
+### EmailConfig
+
+Enabled with `modules: { email: true }`.
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `AWS_SES_REGION` | `string` | `'us-east-1'` | AWS region for SES |
+| `EMAIL_FROM` | `string` | `'noreply@example.com'` | Default sender address |
+
+---
+
+## Helper schemas
+
+### envBoolean
+
+```typescript
+const envBoolean: z.ZodEffects<z.ZodBoolean>
+```
+
+A Zod preprocessor that coerces string environment variable values to boolean. The strings `'false'`, `'0'`, and `''` (empty string) become `false`. Any other truthy string becomes `true`.
+
+Use this in `extend` schemas when you need boolean flags from environment variables:
+
+```typescript
+import { envBoolean } from 'telaio/config';
+import { z } from 'zod';
+
+const config = loadConfig({
+  extend: z.object({
+    FEATURE_FLAG: envBoolean.default(false),
+  }),
+});
+```
+
+### csvString
+
+```typescript
+const csvString: z.ZodEffects<z.ZodArray<z.ZodString>>
+```
+
+A Zod preprocessor that splits a comma-separated string into a `string[]`. Used internally for `CORS_ORIGINS` and `WHITELIST_PROXIES`. Handy for any env var that should accept a list:
+
+```typescript
+import { csvString } from 'telaio/config';
+import { z } from 'zod';
+
+const config = loadConfig({
+  extend: z.object({
+    ALLOWED_IPS: csvString.default([]),
+  }),
+});
+// ALLOWED_IPS="1.2.3.4,5.6.7.8" => ['1.2.3.4', '5.6.7.8']
+```

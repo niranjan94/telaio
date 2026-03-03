@@ -1,0 +1,286 @@
+---
+title: Builder API Reference
+description: Complete reference for createApp(), AppBuilder, and TelaioApp.
+---
+
+# Builder API Reference
+
+## createApp()
+
+```typescript
+function createApp<TConfig extends Record<string, unknown> = Record<string, never>>(
+  options?: CreateAppOptions<TConfig>,
+): AppBuilder<DefaultFeatures, unknown, TConfig>
+```
+
+Entry point for every Telaio application. Returns an `AppBuilder` with all feature flags set to `false` (`DefaultFeatures`). Nothing is constructed until you call `.build()`.
+
+### CreateAppOptions
+
+```typescript
+interface CreateAppOptions<TConfig extends Record<string, unknown> = Record<string, never>> {
+  config?: TConfig;
+  logger?: Logger;
+}
+```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `config` | `TConfig` | Validated config object from `loadConfig()`. Passed through to `TelaioApp.config`. |
+| `logger` | `Logger` | Pino logger instance. If omitted, a default logger is created. |
+
+---
+
+## AppBuilder\<F, TSession, TConfig\>
+
+The builder accumulates configuration across method calls. Each method returns a new `AppBuilder` with updated type parameters. The three type parameters are inferred -- you never write them explicitly.
+
+| Parameter | Purpose | Default |
+|-----------|---------|---------|
+| `F extends Features` | Which optional features are active | `DefaultFeatures` |
+| `TSession` | Shape of the authenticated session object | `unknown` |
+| `TConfig` | Type of the config object | `Record<string, never>` |
+
+### Methods
+
+#### .withDatabase(options?)
+
+```typescript
+withDatabase(options?: WithDatabaseOptions): AppBuilder<F & { database: true }, TSession, TConfig>
+```
+
+Registers a pg pool and Kysely instance. Sets the `database` feature flag to `true`, which makes `pool` and `db` available on the built `TelaioApp`.
+
+If `options.pool` and `options.db` are provided, those pre-built instances are reused instead of creating new ones. This is used for the [auth chicken-and-egg pattern](/docs/core-concepts/builder-pattern#the-auth-chicken-and-egg-problem).
+
+#### .withCache(options?)
+
+```typescript
+withCache(options?: WithCacheOptions): AppBuilder<F & { cache: true }, TSession, TConfig>
+```
+
+Registers a Redis-backed cache. Sets the `cache` feature flag to `true`, making `cache` available on the built `TelaioApp`. If `options.enabled` is `false` (or `REDIS_ENABLED=false` in config), a no-op stub is used and no Redis connection is opened.
+
+#### .withQueues(registry, options?)
+
+```typescript
+withQueues<TQueues extends QueueRegistry>(
+  registry: TQueues,
+  options?: WithQueueOptions,
+): AppBuilder<F & { queue: true }, TSession, TConfig>
+```
+
+Registers a pg-boss producer and typed job consumers. The `registry` argument maps queue names to handler functions. Sets the `queue` feature flag to `true`, making `queue` (a typed `QueueProducer<TQueues>`) available on the built `TelaioApp`.
+
+```typescript
+const registry = {
+  'send-email': async (jobs) => { /* ... */ },
+  'process-upload': async (jobs) => { /* ... */ },
+} satisfies QueueRegistry;
+
+createApp({ config }).withQueues(registry);
+```
+
+#### .withAuth(adapter)
+
+```typescript
+withAuth<S>(adapter: AuthAdapter<S>): AppBuilder<F & { auth: true }, S, TConfig>
+```
+
+Registers the auth Fastify plugin. Sets the `auth` feature flag to `true` and narrows `TSession` to `S`, which is the session type returned by `adapter.getSession()`. Makes `auth` available on the built `TelaioApp`.
+
+#### .withSwagger(options)
+
+```typescript
+withSwagger(options: SwaggerOptions): AppBuilder<F, TSession, TConfig>
+```
+
+Registers Fastify's `@fastify/swagger` plugin with the given options. Does not change type parameters. Must be called before routes are registered -- Telaio enforces this ordering automatically during `.build()`.
+
+#### .withApiDocs(options?)
+
+```typescript
+withApiDocs(options?: ScalarOptions): AppBuilder<F & { apiDocs: true }, TSession, TConfig>
+```
+
+Registers the Scalar API reference UI at `/reference`. Sets the `apiDocs` feature flag to `true`. Requires `.withSwagger()` to have been called first.
+
+#### .withPlugins(options)
+
+```typescript
+withPlugins(options: PluginOptions): AppBuilder<F, TSession, TConfig>
+```
+
+Configures route autoloading, rate limiting, CORS, and other Fastify plugins. Pass `{ autoload: false }` in tests to disable route autoloading and register routes manually.
+
+#### .withSchemas(schemasDir)
+
+```typescript
+withSchemas(schemasDir: string | false): AppBuilder<F, TSession, TConfig>
+```
+
+Sets the directory from which TypeBox schemas are auto-registered. Pass `false` to disable schema autoloading entirely (useful in tests).
+
+#### .onReady(fn)
+
+```typescript
+onReady(fn: () => Promise<void>): AppBuilder<F, TSession, TConfig>
+```
+
+Registers a hook that is called after `fastify.listen()` completes. Skipped when `.asEphemeral()` is used.
+
+#### .onClose(fn)
+
+```typescript
+onClose(fn: () => Promise<void>): AppBuilder<F, TSession, TConfig>
+```
+
+Registers a hook that is called during graceful shutdown (before `fastify.close()`). Skipped when `.asEphemeral()` is used.
+
+#### .withTempFiles()
+
+```typescript
+withTempFiles(): AppBuilder<F, TSession, TConfig>
+```
+
+Enables temporary file upload support via `@fastify/multipart`. Required if any route handler accesses `request.tmpFiles`.
+
+#### .asEphemeral()
+
+```typescript
+asEphemeral(): AppBuilder<F, TSession, TConfig>
+```
+
+Marks the builder as ephemeral. In ephemeral mode, lifecycle hooks registered with `.onReady()` and `.onClose()` are skipped. Intended for test apps and short-lived CLI invocations.
+
+#### .build()
+
+```typescript
+async build(): Promise<TelaioApp<F, TSession, TConfig>>
+```
+
+Assembles the application. Performs a fixed 12-step assembly (see [Build assembly order](/docs/core-concepts/builder-pattern#build-assembly-order)). Returns a `TelaioApp` typed according to the accumulated feature flags.
+
+---
+
+## WithDatabaseOptions
+
+```typescript
+interface WithDatabaseOptions {
+  pool?: pg.Pool;
+  db?: Kysely<unknown>;
+}
+```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `pool` | `pg.Pool` | Pre-built pool to reuse. If omitted, one is created from config. |
+| `db` | `Kysely<unknown>` | Pre-built Kysely instance to reuse. If omitted, one is created from `pool`. |
+
+---
+
+## WithCacheOptions
+
+```typescript
+interface WithCacheOptions {
+  enabled?: boolean;
+  url?: string;
+  instance?: Cache;
+}
+```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `enabled` | `boolean` | Override `REDIS_ENABLED` from config. |
+| `url` | `string` | Override `REDIS_URL` from config. |
+| `instance` | `Cache` | Pre-built cache instance to reuse. |
+
+---
+
+## WithQueueOptions
+
+```typescript
+interface WithQueueOptions {
+  connection?: QueueClientOptions;
+}
+```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `connection` | `QueueClientOptions` | pg-boss connection options. Falls back to config `DATABASE_URL`. |
+
+---
+
+## TelaioApp\<F, TSession, TConfig\>
+
+The result of calling `.build()`. Properties that depend on feature flags are only present when the corresponding flag is `true` in `F`.
+
+### Always present
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `fastify` | `FastifyInstance` | The underlying Fastify server instance |
+| `config` | `TConfig` | The validated config object passed to `createApp()` |
+| `logger` | `Logger` | Pino logger instance |
+| `start(options?)` | `(options?: StartOptions) => Promise<void>` | Bind to a port and start accepting requests |
+| `stop()` | `() => Promise<void>` | Gracefully shut down the server and close connections |
+
+### Conditional (feature-gated)
+
+| Property | Required feature | Type | Description |
+|----------|-----------------|------|-------------|
+| `pool` | `database: true` | `pg.Pool` | The underlying node-postgres pool |
+| `db` | `database: true` | `Kysely<unknown>` | Kysely query builder instance |
+| `cache` | `cache: true` | `Cache` | Redis wrapper (or no-op stub if disabled) |
+| `queue` | `queue: true` | `QueueProducer<TQueues>` | Typed pg-boss producer |
+| `auth` | `auth: true` | `{ session: TSession }` | Auth context |
+
+Accessing a conditional property without enabling the feature is a compile-time error. See [Phantom Types](/docs/core-concepts/phantom-types).
+
+---
+
+## StartOptions
+
+```typescript
+interface StartOptions {
+  port?: number;
+  host?: string;
+}
+```
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `port` | `number` | Port to listen on. Falls back to `API_LISTEN_PORT` from config, then `4001`. |
+| `host` | `string` | Host address to bind. Falls back to `API_LISTEN_ADDRESS` from config, then `'0.0.0.0'`. |
+
+---
+
+## Features
+
+```typescript
+interface Features {
+  database: boolean;
+  cache: boolean;
+  queue: boolean;
+  auth: boolean;
+  apiDocs: boolean;
+}
+```
+
+The complete set of feature flags. The `TelaioApp` conditional type reads each flag to determine which properties to expose.
+
+---
+
+## DefaultFeatures
+
+```typescript
+type DefaultFeatures = {
+  database: false;
+  cache: false;
+  queue: false;
+  auth: false;
+  apiDocs: false;
+};
+```
+
+The initial feature set returned by `createApp()`. All flags are `false`. Each `with*()` call merges `{ featureName: true }` into `F`.

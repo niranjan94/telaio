@@ -1,0 +1,235 @@
+---
+title: Cache API Reference
+description: Complete reference for createCache(), the Cache class, CacheOptions, and LiveConfigService.
+---
+
+# Cache API Reference
+
+Import cache utilities from `telaio/cache`:
+
+```typescript
+import { createCache, Cache, LiveConfigService } from 'telaio/cache';
+```
+
+---
+
+## createCache()
+
+```typescript
+function createCache(
+  options?: CacheOptions | Record<string, unknown>,
+  logger?: Logger,
+): Cache
+```
+
+Creates a `Cache` instance. Accepts either explicit `CacheOptions` or a loaded config record. When passed a config record it reads `REDIS_ENABLED` and `REDIS_URL` automatically.
+
+If `enabled` is `false` (or `REDIS_ENABLED=false` in config), returns a no-op stub. All methods return `null` or resolve immediately without connecting to Redis. No `ioredis` peer dependency is loaded.
+
+```typescript
+// From explicit options
+const cache = createCache({ enabled: true, url: 'redis://localhost:6379' });
+
+// From a loaded config (reads REDIS_ENABLED and REDIS_URL)
+const cache = createCache(config);
+
+// Disabled stub -- safe to use in tests without Redis
+const cache = createCache({ enabled: false });
+```
+
+### CacheOptions
+
+```typescript
+interface CacheOptions {
+  enabled?: boolean;
+  url?: string;
+}
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | `boolean` | `true` | Whether to connect to Redis. When `false`, a no-op stub is returned. |
+| `url` | `string` | `undefined` | Redis connection URI (e.g. `redis://localhost:6379`). Required when `enabled` is `true`. |
+
+---
+
+## Cache
+
+The `Cache` class wraps an `ioredis` client and provides a consistent interface for string and JSON operations. It requires `ioredis` as a peer dependency.
+
+```typescript
+class Cache {
+  redis: ioredis.Redis | null;
+
+  async get(key: string): Promise<string | null>
+  async set(key: string, value: string, ttl?: number): Promise<void>
+  async getRecord<T = unknown>(key: string): Promise<T | null>
+  async setRecord(key: string, value: unknown, ttl?: number): Promise<void>
+  async delete(key: string): Promise<void>
+  async close(): Promise<void>
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `redis` | `ioredis.Redis \| null` | The underlying ioredis client. `null` when cache is disabled. |
+
+### Methods
+
+#### .get(key)
+
+```typescript
+async get(key: string): Promise<string | null>
+```
+
+Retrieves a raw string value. Returns `null` if the key does not exist or if the cache is disabled.
+
+#### .set(key, value, ttl?)
+
+```typescript
+async set(key: string, value: string, ttl?: number): Promise<void>
+```
+
+Stores a raw string value. If `ttl` is provided, the key expires after that many seconds. If the cache is disabled, this is a no-op.
+
+#### .getRecord\<T\>(key)
+
+```typescript
+async getRecord<T = unknown>(key: string): Promise<T | null>
+```
+
+Retrieves and `JSON.parse()`s a stored value. Returns `null` if the key does not exist, if parsing fails, or if the cache is disabled.
+
+#### .setRecord(key, value, ttl?)
+
+```typescript
+async setRecord(key: string, value: unknown, ttl?: number): Promise<void>
+```
+
+`JSON.stringify()`s `value` and stores it. If `ttl` is provided, the key expires after that many seconds. No-op when the cache is disabled.
+
+#### .delete(key)
+
+```typescript
+async delete(key: string): Promise<void>
+```
+
+Deletes a key. No-op when the cache is disabled.
+
+#### .close()
+
+```typescript
+async close(): Promise<void>
+```
+
+Closes the Redis connection gracefully. Called automatically by `app.stop()`. No-op when the cache is disabled.
+
+### Usage example
+
+```typescript
+import { createCache } from 'telaio/cache';
+
+const cache = createCache({ enabled: true, url: 'redis://localhost:6379' });
+
+// String values
+await cache.set('session:abc123', 'user-id-456', 3600); // expires in 1 hour
+const raw = await cache.get('session:abc123'); // 'user-id-456'
+
+// JSON records
+await cache.setRecord('user:42', { name: 'Alice', role: 'admin' }, 600);
+const user = await cache.getRecord<{ name: string; role: string }>('user:42');
+// { name: 'Alice', role: 'admin' }
+
+await cache.delete('session:abc123');
+await cache.close();
+```
+
+### Disabled mode
+
+When `enabled: false`, all methods silently succeed or return `null`:
+
+```typescript
+const cache = createCache({ enabled: false });
+
+cache.redis; // null
+await cache.get('any-key'); // null -- no Redis call
+await cache.set('any-key', 'value'); // no-op
+await cache.setRecord('any-key', { foo: 'bar' }); // no-op
+await cache.getRecord('any-key'); // null
+await cache.delete('any-key'); // no-op
+await cache.close(); // no-op
+```
+
+This is the recommended approach for tests that do not need Redis.
+
+---
+
+## LiveConfigService\<T\>
+
+```typescript
+class LiveConfigService<T> {
+  constructor(db: Kysely<any>, cache: Cache, options?: LiveConfigOptions)
+
+  async get(key: string): Promise<T | null>
+  async set(key: string, value: T): Promise<void>
+  async delete(key: string): Promise<void>
+}
+```
+
+A stale-while-revalidate (SWR) config service backed by a Postgres database table and Redis cache. Stores structured config values that need to survive restarts but also be updated at runtime without a deploy.
+
+Values are served from Redis when available (fast path). On a cache miss they are loaded from Postgres and written back to Redis with a TTL (slow path). Updates write through to both stores.
+
+### Constructor
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `db` | `Kysely<any>` | Kysely database instance |
+| `cache` | `Cache` | Cache instance (can be the disabled stub) |
+| `options` | `LiveConfigOptions` | Optional TTL and table name overrides |
+
+### Methods
+
+#### .get(key)
+
+```typescript
+async get(key: string): Promise<T | null>
+```
+
+Returns the value for `key`. Checks Redis first (fast path), falls back to Postgres (slow path, then repopulates Redis). Returns `null` if the key does not exist in either store.
+
+#### .set(key, value)
+
+```typescript
+async set(key: string, value: T): Promise<void>
+```
+
+Persists `value` to Postgres and writes it to Redis. Both writes happen before the method resolves.
+
+#### .delete(key)
+
+```typescript
+async delete(key: string): Promise<void>
+```
+
+Deletes the key from both Postgres and Redis.
+
+### Usage example
+
+```typescript
+import { LiveConfigService } from 'telaio/cache';
+
+interface FeatureFlags {
+  newCheckout: boolean;
+  maxUploadSizeMb: number;
+}
+
+const flags = new LiveConfigService<FeatureFlags>(db, cache);
+
+await flags.set('checkout-flags', { newCheckout: true, maxUploadSizeMb: 50 });
+
+const current = await flags.get('checkout-flags');
+// { newCheckout: true, maxUploadSizeMb: 50 }
+```
