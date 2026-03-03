@@ -12,6 +12,8 @@ The tradeoff is explicit: in exchange for accepting these choices, you get deep 
 
 The centerpiece of the design is phantom types on the builder. Enabling a feature changes the TypeScript type of the built application. Calling `app.db` without having called `.withDatabase()` is a compile-time error, not a runtime one. The type system enforces that your wiring is correct before the process starts.
 
+This design has a second-order benefit: it makes your codebase dramatically easier for AI coding agents to work with. A fixed stack means an LLM cannot make wrong library choices. Phantom types and Zod config validation catch its mistakes at compile time, not runtime. The entire application's infrastructure story fits in a single builder chain -- not scattered across dozens of config and module files. The surface area an AI agent needs to understand shrinks to your business logic.
+
 TypeScript is required. ESM is the only module format. Node 20 or later is the minimum runtime.
 
 ## Install

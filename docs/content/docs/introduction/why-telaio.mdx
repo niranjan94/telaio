@@ -19,6 +19,18 @@ When you reach for Telaio, you are accepting a fixed stack in exchange for three
 
 **Misconfigurations caught at compile time.** This is the part that makes Telaio unusual. If you call `app.pool` on an app that was not built with `.withDatabase()`, TypeScript rejects it. Not at runtime. Not with a null pointer. At the type level, the property does not exist.
 
+## AI-Ready by Design
+
+These same properties -- fixed stack, phantom types, builder pattern -- have a second-order effect that matters increasingly: they make your codebase dramatically easier for LLM coding agents to work with.
+
+**Reduced surface area.** A Telaio app's entire infrastructure story is one builder chain in `app.ts`. Compare that to NestJS, where the same information is scattered across 15-25 module and config files, or Sails.js, which ships 40+ config files in a fresh project. Fewer files for an LLM to read means more context budget for your actual business logic.
+
+**Inflexibility as a guardrail.** When the stack is fixed, an LLM agent cannot decide to swap Kysely for Prisma or Redis for Memcached. Its decision space is constrained to the code that matters -- your domain logic, your routes, your queries. Not infrastructure plumbing.
+
+**Compile-time feedback loops.** Phantom types and Zod config validation create a tight feedback loop for AI agents. If an agent tries to use `app.db` without `.withDatabase()`, the compiler rejects it immediately. The agent self-corrects without a deploy-and-debug cycle. This is fundamentally different from frameworks where misconfiguration only surfaces at runtime.
+
+For a deeper look at how Telaio's design choices interact with AI-assisted development, see [AI-Ready by Design](/docs/introduction/ai-ready).
+
 ## Phantom Types — The Structural Idea
 
 Telaio's `AppBuilder` carries a phantom type parameter `F extends Features`. Every `.with*()` method transforms it:

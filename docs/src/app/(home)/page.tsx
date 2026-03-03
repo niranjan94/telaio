@@ -1,6 +1,7 @@
 import {
   BookOpen,
   Box,
+  Bot,
   ExternalLink,
   Layers,
   Lock,
@@ -124,7 +125,7 @@ export default function HomePage() {
 
       {/* Three Pillars */}
       <section className="mx-auto max-w-5xl px-6 py-24">
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <PillarCard
             icon={<Lock size={18} style={{ color: "#c8a97e" }} />}
             heading="Phantom Types"
@@ -180,6 +181,16 @@ export default function HomePage() {
             PostgreSQL via Kysely. Redis. pg-boss. Pino. TypeBox. Every pairing
             is pre-typed and pre-wired. Zero config overhead for decisions
             already made.
+          </PillarCard>
+
+          <PillarCard
+            icon={<Bot size={18} style={{ color: "#c8a97e" }} />}
+            heading="AI-Ready by Design"
+            delay="animation-delay-400"
+          >
+            A fixed stack and phantom types mean LLM agents work with your
+            business logic, not infrastructure plumbing. Compile-time errors
+            catch AI mistakes before runtime.
           </PillarCard>
         </div>
       </section>
