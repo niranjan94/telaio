@@ -13,6 +13,7 @@ describe('AppBuilder onReady/onClose', () => {
       });
 
     // Access private field for testing
+    // biome-ignore lint/suspicious/noExplicitAny: accessing private field in test
     const hooks = (builder as any)._onReady as Array<() => Promise<void>>;
     expect(hooks).toHaveLength(2);
     for (const fn of hooks) await fn();
@@ -29,6 +30,7 @@ describe('AppBuilder onReady/onClose', () => {
         calls.push('second');
       });
 
+    // biome-ignore lint/suspicious/noExplicitAny: accessing private field in test
     const hooks = (builder as any)._onClose as Array<() => Promise<void>>;
     expect(hooks).toHaveLength(2);
     for (const fn of hooks) await fn();
@@ -40,6 +42,7 @@ describe('AppBuilder onReady/onClose', () => {
     const fn2 = vi.fn();
     const builder = new AppBuilder().onReady(fn1).onReady(fn2);
 
+    // biome-ignore lint/suspicious/noExplicitAny: accessing private field in test
     const hooks = (builder as any)._onReady;
     expect(hooks).toContain(fn1);
     expect(hooks).toContain(fn2);
