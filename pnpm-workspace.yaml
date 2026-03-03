@@ -1,8 +1,19 @@
+packages:
+  - .
+  - docs/
+
 approveBuildsForPackages: '@parcel/watcher'
 
+ignoredBuiltDependencies:
+  - '@prisma/engines'
+  - prisma
+
 onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - core-js
   - cpu-features
   - esbuild
   - protobufjs
+  - sharp
   - ssh2
   - vue-demi
