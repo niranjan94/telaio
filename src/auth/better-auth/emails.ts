@@ -3,6 +3,7 @@ export interface EmailTemplateVars {
   appName: string;
   url: string;
   name?: string;
+  baseUrl?: string;
 }
 
 /** Function that sends an email. Users provide their own implementation (SES, Resend, etc.). */
@@ -17,10 +18,12 @@ export type EmailSender = (options: {
 export interface EmailCallbackOptions {
   appName: string;
   send: EmailSender;
-  /** Override the default HTML template. Receives vars, returns HTML string. */
-  template?: (vars: EmailTemplateVars) => string;
+  /** Override the default HTML template. Receives vars, returns HTML string (sync or async). */
+  template?: (vars: EmailTemplateVars) => string | Promise<string>;
   /** Override the default subject line. */
   subject?: string | ((vars: EmailTemplateVars) => string);
+  /** Base URL passed through to template vars. */
+  baseUrl?: string;
 }
 
 /**
@@ -118,6 +121,7 @@ export function emailVerificationCallbacks(options: EmailCallbackOptions) {
         appName: options.appName,
         url,
         name: user.name || user.email.split('@')[0],
+        baseUrl: options.baseUrl,
       };
       const template = options.template ?? renderEmailVerification;
       const subject =
@@ -128,7 +132,7 @@ export function emailVerificationCallbacks(options: EmailCallbackOptions) {
       await options.send({
         to: user.email,
         subject,
-        html: template(vars),
+        html: await Promise.resolve(template(vars)),
         text: `Verify your email for ${options.appName}: ${url}`,
       });
     },
@@ -142,7 +146,11 @@ export function magicLinkCallbacks(options: EmailCallbackOptions) {
   return {
     disableSignUp: true,
     sendMagicLink: async ({ email, url }: { email: string; url: string }) => {
-      const vars: EmailTemplateVars = { appName: options.appName, url };
+      const vars: EmailTemplateVars = {
+        appName: options.appName,
+        url,
+        baseUrl: options.baseUrl,
+      };
       const template = options.template ?? renderMagicLink;
       const subject =
         typeof options.subject === 'function'
@@ -151,9 +159,45 @@ export function magicLinkCallbacks(options: EmailCallbackOptions) {
       await options.send({
         to: email,
         subject,
-        html: template(vars),
+        html: await Promise.resolve(template(vars)),
         text: `Sign in to ${options.appName}: ${url}`,
       });
     },
+  };
+}
+
+/** Options for creating an AWS SES email sender. */
+export interface SESEmailSenderOptions {
+  /** The sender email address. */
+  from: string;
+  /** AWS region for SES. @default 'us-east-1' */
+  region?: string;
+}
+
+/** Creates an EmailSender backed by AWS SES. Sends pre-rendered HTML/text directly. */
+export function createSESEmailSender(
+  options: SESEmailSenderOptions,
+): EmailSender {
+  return async ({ to, subject, html, text }) => {
+    let sesMod: typeof import('@aws-sdk/client-ses');
+    try {
+      sesMod = await import('@aws-sdk/client-ses');
+    } catch {
+      throw new Error(
+        "createSESEmailSender requires '@aws-sdk/client-ses'. Run: pnpm add @aws-sdk/client-ses",
+      );
+    }
+    const ses = new sesMod.SES({ region: options.region ?? 'us-east-1' });
+    await ses.sendEmail({
+      Source: options.from,
+      Destination: { ToAddresses: [to] },
+      Message: {
+        Body: {
+          Html: { Charset: 'UTF-8', Data: html },
+          Text: { Charset: 'UTF-8', Data: text },
+        },
+        Subject: { Charset: 'UTF-8', Data: subject },
+      },
+    });
   };
 }
