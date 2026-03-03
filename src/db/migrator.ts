@@ -123,35 +123,80 @@ export async function runFrameworkMigrations(
   return output;
 }
 
+/** Return type for migration operations that run framework + user migrations. */
+export interface MigrateResult {
+  framework: MigrationResult[];
+  user: MigrationResult[];
+}
+
+/**
+ * Collects Kysely migration results into MigrationResult[].
+ * Throws if an error occurred during migration.
+ */
+function collectResults(
+  results: { migrationName: string; direction: string; status: string }[] | undefined,
+  error: unknown,
+  label: string,
+  log: Logger,
+): MigrationResult[] {
+  const output: MigrationResult[] = [];
+  for (const result of results ?? []) {
+    output.push({
+      migrationName: result.migrationName,
+      direction: result.direction,
+      status: result.status as MigrationResult['status'],
+    });
+  }
+
+  if (error) {
+    log.error({ error }, `${label} migration failed`);
+    throw error;
+  }
+
+  return output;
+}
+
 /**
  * Runs user migrations to the latest version.
  * Framework migrations are run first automatically.
  */
 export async function migrateToLatest(
   options: MigratorOptions,
-): Promise<{ framework: MigrationResult[]; user: MigrationResult[] }> {
+): Promise<MigrateResult> {
   const log = options.logger ?? createLogger({ level: 'warn', pretty: false });
-
-  // Run framework migrations first
   const framework = await runFrameworkMigrations(options.db, log);
-
-  // Run user migrations
   const migrator = createMigrator(options);
   const { error, results } = await migrator.migrateToLatest();
+  const user = collectResults(results, error, 'User', log);
+  return { framework, user };
+}
 
-  const user: MigrationResult[] = [];
-  for (const result of results ?? []) {
-    user.push({
-      migrationName: result.migrationName,
-      direction: result.direction,
-      status: result.status,
-    });
-  }
+/**
+ * Runs the next pending user migration (single step up).
+ * Framework migrations are run first automatically.
+ */
+export async function migrateUp(
+  options: MigratorOptions,
+): Promise<MigrateResult> {
+  const log = options.logger ?? createLogger({ level: 'warn', pretty: false });
+  const framework = await runFrameworkMigrations(options.db, log);
+  const migrator = createMigrator(options);
+  const { error, results } = await migrator.migrateUp();
+  const user = collectResults(results, error, 'User', log);
+  return { framework, user };
+}
 
-  if (error) {
-    log.error({ error }, 'User migration failed');
-    throw error;
-  }
-
+/**
+ * Rolls back the last executed user migration (single step down).
+ * Framework migrations are run first automatically.
+ */
+export async function migrateDown(
+  options: MigratorOptions,
+): Promise<MigrateResult> {
+  const log = options.logger ?? createLogger({ level: 'warn', pretty: false });
+  const framework = await runFrameworkMigrations(options.db, log);
+  const migrator = createMigrator(options);
+  const { error, results } = await migrator.migrateDown();
+  const user = collectResults(results, error, 'User', log);
   return { framework, user };
 }

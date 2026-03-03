@@ -24,4 +24,16 @@ describe('migrator', () => {
     expect(mod.migrateToLatest).toBeDefined();
     expect(typeof mod.migrateToLatest).toBe('function');
   });
+
+  it('exports migrateUp', async () => {
+    const mod = await import('../migrator.js');
+    expect(mod.migrateUp).toBeDefined();
+    expect(typeof mod.migrateUp).toBe('function');
+  });
+
+  it('exports migrateDown', async () => {
+    const mod = await import('../migrator.js');
+    expect(mod.migrateDown).toBeDefined();
+    expect(typeof mod.migrateDown).toBe('function');
+  });
 });

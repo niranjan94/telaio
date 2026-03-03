@@ -4,11 +4,13 @@ export {
   createPool,
   registerCitextParser,
 } from './client.js';
-export type { MigrationResult, MigratorOptions } from './migrator.js';
+export type { MigrateResult, MigrationResult, MigratorOptions } from './migrator.js';
 export {
   createMigrationFile,
   createMigrator,
+  migrateDown,
   migrateToLatest,
+  migrateUp,
   runFrameworkMigrations,
 } from './migrator.js';
 export type {
