@@ -1,0 +1,133 @@
+---
+title: Caching
+description: Redis-backed cache with graceful degradation, stale-while-revalidate config service, and builder integration.
+---
+
+# Caching
+
+Telaio's cache module wraps [ioredis](https://github.com/redis/ioredis) with two important properties: it degrades silently when Redis is unavailable, and it provides a typed record API so you do not have to manually serialize/deserialize JSON.
+
+## Graceful degradation
+
+When Redis is disabled (`enabled: false`) or the connection fails, every cache operation silently returns `null` or does nothing. The app keeps running. Caching is a performance layer -- losing it should never take down a service.
+
+This is intentional. You do not need `try/catch` around cache calls.
+
+## createCache()
+
+```typescript
+import { createCache } from 'telaio/cache';
+
+// Config-style: reads REDIS_ENABLED and REDIS_URL from your loaded config
+const cache = createCache(config);
+
+// Direct options
+const cache = createCache({
+  enabled: true,
+  url: 'redis://localhost:6379',
+});
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enabled` | `boolean` | `true` | Set to `false` to run without Redis |
+| `url` | `string` | `redis://localhost:6379` | Redis connection URL |
+
+## Cache methods
+
+```typescript
+// String cache
+await cache.set('session:abc', 'userId:123', 3600); // TTL in seconds
+const value = await cache.get('session:abc');        // string | null
+
+// JSON records -- serialized automatically
+await cache.setRecord('user:123', { name: 'Alice', plan: 'pro' }, 300);
+const user = await cache.getRecord<User>('user:123'); // User | null
+
+// Delete
+await cache.delete('session:abc');
+
+// Disconnect
+await cache.close();
+```
+
+| Method | Description |
+|--------|-------------|
+| `get(key)` | Fetch a raw string value |
+| `set(key, value, ttl?)` | Store a raw string, optionally with a TTL in seconds |
+| `getRecord<T>(key)` | Fetch and JSON-parse a stored object |
+| `setRecord(key, value, ttl?)` | JSON-serialize and store an object |
+| `delete(key)` | Remove a key |
+| `close()` | Disconnect from Redis |
+
+All methods return `null` or do nothing silently when Redis is disabled or unreachable.
+
+## Raw Redis client
+
+If you need operations not covered by the typed API (pipelines, pub/sub, Lua scripts), access the underlying ioredis client directly:
+
+```typescript
+const cache = createCache(config);
+
+if (cache.redis) {
+  await cache.redis.zadd('leaderboard', score, userId);
+  const top10 = await cache.redis.zrevrange('leaderboard', 0, 9);
+}
+```
+
+`cache.redis` is `null` when caching is disabled, so guard before using it.
+
+## Full example
+
+```typescript
+import { createCache } from 'telaio/cache';
+
+const cache = createCache(config);
+
+// Simple string cache
+await cache.set('session:abc', 'userId:123', 3600); // 1 hour TTL
+const value = await cache.get('session:abc');
+
+// JSON records
+await cache.setRecord('user:123', { name: 'Alice', plan: 'pro' }, 300);
+const user = await cache.getRecord<User>('user:123');
+
+// If Redis is down, all operations silently return null/undefined
+// The app keeps running -- caching is a performance layer
+```
+
+## Builder integration
+
+```typescript
+const app = await createApp({ config })
+  .withCache()               // options derived from config
+  .build();
+
+app.cache  // Cache instance
+```
+
+Pass a pre-created instance or explicit options:
+
+```typescript
+.withCache({ instance: myCache })
+.withCache({ cacheOptions: { url: 'redis://custom:6379' } })
+```
+
+## LiveConfigService
+
+`LiveConfigService<T>` provides a stale-while-revalidate (SWR) config pattern backed by both a database table and Redis. It is useful for feature flags or runtime config values that change infrequently but must be read on every request.
+
+```typescript
+import { LiveConfigService } from 'telaio/cache';
+
+const liveConfig = new LiveConfigService<AppConfig>({
+  db,
+  cache,
+  ttl: 60,        // seconds before revalidating from DB
+  key: 'app-config',
+});
+
+const config = await liveConfig.get();  // returns cached value if fresh
+```
+
+On a cache hit the value is returned immediately. On a miss or after TTL expiry the value is fetched from the database, written back to Redis, and returned.

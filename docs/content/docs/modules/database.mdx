@@ -1,0 +1,196 @@
+---
+title: Database
+description: pg pool, Kysely query builder, migrations, dynamic filters, and sort/pagination helpers.
+---
+
+# Database
+
+Telaio's database layer wraps `node-postgres` (pg) and [Kysely](https://kysely.dev) into a pair of factory functions. The builder's `.withDatabase()` method is a convenience wrapper around the same factories -- you can also call them directly when you need a connection before the builder is assembled (see [better-auth chicken-and-egg](/docs/modules/better-auth)).
+
+## createPool()
+
+```typescript
+import { createPool } from 'telaio/db';
+
+// Config-style: reads DATABASE_URL and DATABASE_SSL from your loaded config
+const pool = await createPool(config);
+
+// Direct options
+const pool = await createPool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: true,
+  max: 10,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
+});
+```
+
+`createPool` accepts either a raw `PoolOptions` object or your loaded config record. When passed a config object it reads the `DATABASE_URL` and `DATABASE_SSL` keys automatically.
+
+**Auto-SSL for AWS RDS:** if the connection string contains `rds.amazonaws.com`, SSL is enabled automatically even if you do not set `ssl: true`.
+
+### PoolOptions
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `connectionString` | `string` | -- | Full postgres connection URI |
+| `ssl` | `boolean` | `false` | Enable SSL/TLS |
+| `max` | `number` | pg default | Maximum pool size |
+| `idleTimeoutMillis` | `number` | pg default | How long an idle client is kept before being closed |
+| `connectionTimeoutMillis` | `number` | pg default | How long to wait acquiring a connection |
+
+## createDatabase\<DB\>()
+
+```typescript
+import { createDatabase } from 'telaio/db';
+
+const db = await createDatabase<DB>(pool);
+```
+
+`createDatabase` wraps the pool in a Kysely instance using `PostgresDialect`. The `DB` generic is the database interface you generate with [kysely-codegen](https://github.com/RobinBlomberg/kysely-codegen) or write by hand.
+
+**CamelCasePlugin is always enabled.** Database columns are `snake_case`; Kysely exposes them as `camelCase` in TypeScript. You do not need to configure this -- it is on by default and cannot be turned off without bypassing the factory.
+
+### Additional plugins
+
+```typescript
+import { createDatabase } from 'telaio/db';
+import { DeduplicateJoinsPlugin } from 'kysely';
+
+const db = await createDatabase<DB>(pool, {
+  plugins: [new DeduplicateJoinsPlugin()],
+});
+```
+
+Any plugins you pass are appended after `CamelCasePlugin`.
+
+<Callout type="warn">
+`db.destroy()` also ends the underlying pg Pool via `PostgresDialect`. Never call both `db.destroy()` and `pool.end()` -- the second call will throw "Called end on pool more than once".
+</Callout>
+
+## registerCitextParser()
+
+If your schema uses PostgreSQL's `CITEXT` type (case-insensitive text), register the array parser so that `CITEXT[]` columns are decoded correctly:
+
+```typescript
+import { createPool, registerCitextParser } from 'telaio/db';
+
+const pool = await createPool(config);
+await registerCitextParser(pool);
+```
+
+This requires the `postgres-array` peer dependency to be installed.
+
+## Builder integration
+
+```typescript
+const app = await createApp({ config })
+  .withDatabase()       // pool + db created from config
+  .build();
+
+app.pool  // pg.Pool
+app.db    // Kysely<unknown> -- cast to Kysely<DB> as needed
+```
+
+You can pass pre-built instances to skip internal construction:
+
+```typescript
+const app = await createApp({ config })
+  .withDatabase({ pool, db })
+  .build();
+```
+
+## Migrations
+
+Import migration utilities from `telaio/db/migrations`:
+
+```typescript
+import {
+  createMigrator,
+  createMigrationFile,
+  migrateToLatest,
+  runFrameworkMigrations,
+} from 'telaio/db/migrations';
+```
+
+| Function | Description |
+|----------|-------------|
+| `createMigrator(db, dir)` | Creates a Kysely `Migrator` pointed at your migrations directory |
+| `createMigrationFile(dir, name)` | Scaffolds a new timestamped migration file |
+| `migrateToLatest(db, dir)` | Runs all pending app migrations |
+| `runFrameworkMigrations(db)` | Runs Telaio's own internal migrations |
+
+Telaio stores its internal migration state in `_telaio_migrations`. Your app migrations use a separate table (Kysely defaults to `kysely_migration`). The two tables never conflict.
+
+The `telaio migrate` CLI command wraps both `runFrameworkMigrations` and `migrateToLatest` in the correct order.
+
+## Dynamic filters (applyFilter)
+
+`applyFilter` translates a JSON filter object into Kysely `where` clauses. It is designed for user-supplied filter parameters -- for example, query string filters forwarded from an API client.
+
+```typescript
+import { createPool, createDatabase, applyFilter } from 'telaio/db';
+
+const pool = await createPool(config);
+const db = await createDatabase<DB>(pool);
+
+const results = await db
+  .selectFrom('users')
+  .selectAll()
+  .call((q) =>
+    applyFilter(q, { status: 'active', age: { $gte: 18 } }, ['status', 'age'])
+  )
+  .execute();
+```
+
+The third argument, `filterableColumns`, is an allowlist. Any key in the filter object that is not in this list is silently ignored, preventing column-injection.
+
+**Limits:** max depth 4, max conditions 20.
+
+### Operators
+
+| Operator | SQL equivalent | Example |
+|----------|---------------|---------|
+| `$eq` | `=` or `IS NULL` | `{ status: "open" }` or `{ status: { $eq: null } }` |
+| `$ne` | `!=` or `IS NOT NULL` | `{ deleted: { $ne: null } }` |
+| `$gt` | `>` | `{ age: { $gt: 18 } }` |
+| `$gte` | `>=` | `{ createdAt: { $gte: "2024-01-01" } }` |
+| `$lt` | `<` | `{ price: { $lt: 100 } }` |
+| `$lte` | `<=` | `{ score: { $lte: 10 } }` |
+| `$in` | `IN (...)` | `{ status: { $in: ["open", "pending"] } }` |
+| `$nin` | `NOT IN (...)` | `{ role: { $nin: ["admin"] } }` |
+| `$contains` | `ILIKE %val%` | `{ name: { $contains: "alice" } }` |
+| `$startswith` | `ILIKE val%` | `{ email: { $startswith: "alice" } }` |
+| `$endswith` | `ILIKE %val` | `{ email: { $endswith: "@example.com" } }` |
+| `$exists` | `IS NOT NULL` / `IS NULL` | `{ deletedAt: { $exists: false } }` |
+
+### Logical operators
+
+Wrap conditions in `$and`, `$or`, or `$not`:
+
+```typescript
+applyFilter(q, {
+  $or: [
+    { status: 'active' },
+    { role: { $in: ['admin', 'owner'] } },
+  ],
+}, ['status', 'role']);
+```
+
+## Sort and pagination helpers
+
+Import `sortPaginateQuery` from `telaio/db/query-builders` to apply cursor or offset pagination and multi-column sorting to any `SelectQueryBuilder`:
+
+```typescript
+import { sortPaginateQuery } from 'telaio/db/query-builders';
+
+const page = await sortPaginateQuery(
+  db.selectFrom('users').selectAll(),
+  {
+    sort: [{ column: 'createdAt', direction: 'desc' }],
+    limit: 20,
+    offset: 0,
+  },
+  ['createdAt', 'name'],  // sortable columns allowlist
+).execute();
+```
