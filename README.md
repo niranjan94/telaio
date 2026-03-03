@@ -1,4 +1,6 @@
-# telaio
+[![Test](https://github.com/niranjan94/telaio/actions/workflows/test.yml/badge.svg)](https://github.com/niranjan94/telaio/actions/workflows/test.yml) [![npm version](https://img.shields.io/npm/v/telaio.svg)](https://www.npmjs.com/package/telaio)
+
+# Telaio
 
 A TypeScript-first Fastify 5 framework with a builder pattern and phantom types for compile-time feature safety.
 
