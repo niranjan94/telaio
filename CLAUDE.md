@@ -4,22 +4,21 @@ TypeScript-first Fastify 5 framework with a builder pattern and phantom types fo
 
 ## Commands
 
-| Command | Purpose |
-|---------|---------|
-| `pnpm run build` | Clean + compile (`rm -rf dist && tsc`) |
+| Command | Purpose                                      |
+|---------|----------------------------------------------|
+| `pnpm run build` | Clean + compile (`rm -rf dist && tsc`)       |
 | `pnpm run build:check` | Type-check without emitting (`tsc --noEmit`) |
-| `pnpm run dev` | Watch mode (`tsc --watch`) |
-| `pnpm run format` | Auto-format with Biome |
-| `pnpm run test` | Lint (Biome) + unit tests |
-| `pnpm run test:unit` | Unit tests only (no lint) |
-| `pnpm run test:integration` | Integration tests with mocked deps |
-| `pnpm run test:types` | Compile-time type tests |
-| `pnpm run test:e2e` | E2E with testcontainers — requires Docker |
-| `pnpm run test:all` | All four suites sequentially |
-| `pnpm run --filter telaio dev` | Docs dev server (Next.js) |
-| `pnpm run --filter telaio build` | Build docs for production |
+| `pnpm run dev` | Watch mode (`tsc --watch`)                   |
+| `pnpm run format` | Auto-format with Biome                       |
+| `pnpm run test` | Lint + All four suites sequentially          |
+| `pnpm run test:unit` | Unit tests only (no lint)                    |
+| `pnpm run test:integration` | Integration tests with mocked deps           |
+| `pnpm run test:types` | Compile-time type tests                      |
+| `pnpm run test:e2e` | E2E with testcontainers — requires Docker    |
+| `pnpm run --filter telaio dev` | Docs dev server (Next.js)                    |
+| `pnpm run --filter telaio build` | Build docs for production                    |
 
-**Quality gate after every change:** `pnpm run format && pnpm run build && pnpm run test && pnpm run test:integration`
+**Quality gate after every change:** `pnpm run format && pnpm run build && pnpm run test`
 
 **Docs requirement:** Every API, feature, or behaviour change must include corresponding documentation updates in `docs/content/docs/`. The docs app is the primary reference for users.
 

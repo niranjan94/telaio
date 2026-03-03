@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm build:*)",
+      "Bash(pnpm test:*)",
+      "Bash(git show:*)",
+      "Bash(git commit:*)",
+      "Bash(ls:*)",
+      "Bash(pnpm run:*)",
+      "Bash(find:*)",
+      "Bash(xargs -0 ls -la)",
+      "Bash(pnpm install:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
