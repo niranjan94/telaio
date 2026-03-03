@@ -1,0 +1,134 @@
+---
+title: Quick Start
+description: Get a Telaio app running from scratch in a few minutes.
+---
+
+# Quick Start
+
+## Prerequisites
+
+- Node.js >= 20
+- pnpm
+- Your project must have `"type": "module"` in `package.json`
+
+## Option A: Scaffold with the CLI
+
+```bash
+pnpx telaio init my-app
+cd my-app
+pnpm install
+```
+
+The `init` command creates the project structure, installs dependencies, and sets up configuration. Skip ahead to [First Route](#first-route).
+
+## Option B: Manual Install
+
+Install the core package:
+
+```bash
+pnpm add telaio
+```
+
+Install peer dependencies for the features you need:
+
+| Feature | Peer Dependencies |
+|---------|------------------|
+| Database | `pg kysely` |
+| Cache | `redis` |
+| Queue | `pg-boss` |
+| Auth (better-auth) | `better-auth` |
+| Email | `@aws-sdk/client-ses @react-email/components` |
+| S3 | `@aws-sdk/client-s3` |
+| Dev pretty logs | `pino-pretty` |
+| Multipart uploads | `@fastify/multipart` |
+| CORS | `@fastify/cors` |
+| Swagger / API docs | `@fastify/swagger @scalar/fastify-api-reference` |
+
+## Minimal Wiring
+
+Create `src/app.ts`:
+
+```typescript
+import { loadConfig, createApp } from 'telaio';
+
+const config = loadConfig({
+  modules: { server: true, database: true, cache: true },
+});
+
+export const app = await createApp({ config })
+  .withDatabase()
+  .withCache()
+  .withPlugins({ cors: true })
+  .build();
+```
+
+Create `src/server.ts`:
+
+```typescript
+import { app } from './app.js';
+await app.start();
+```
+
+```bash
+node --import tsx/esm src/server.ts
+```
+
+## First Route
+
+Add `src/routes/users.ts`:
+
+```typescript
+import { Type } from 'typebox';
+import type { FastifyPluginAsync } from 'fastify';
+
+const UserSchema = Type.Object(
+  {
+    id: Type.String(),
+    name: Type.String(),
+  },
+  { $id: 'User' },
+);
+
+const plugin: FastifyPluginAsync = async (fastify) => {
+  fastify.get(
+    '/users/:id',
+    {
+      schema: {
+        params: Type.Object({ id: Type.String() }),
+        response: { 200: UserSchema },
+      },
+    },
+    async (req) => {
+      return { id: req.params.id, name: 'Alice' };
+    },
+  );
+};
+
+export default plugin;
+```
+
+Telaio's autoload discovers `src/routes/**` automatically.
+
+## Add API Documentation
+
+Tack on Swagger + Scalar UI:
+
+```typescript
+const app = await createApp({ config })
+  .withDatabase()
+  .withCache()
+  .withSwagger({ info: { title: 'My API', version: '1.0.0' } })
+  .withApiDocs()
+  .build();
+```
+
+Start the server and visit `http://localhost:4001/docs` for the interactive API explorer.
+
+## Next Steps
+
+<Cards>
+  <Card title="Builder Pattern" href="/docs/core-concepts/builder-pattern" description="Understand how withDatabase(), withCache(), and build() work together." />
+  <Card title="Phantom Types" href="/docs/core-concepts/phantom-types" description="How TypeScript tracks enabled features at compile time." />
+  <Card title="Config System" href="/docs/core-concepts/config-system" description="loadConfig() and defineConfig() for env-based configuration." />
+  <Card title="Database" href="/docs/modules/database" description="Pool, Kysely, migrations, and query builders." />
+</Cards>

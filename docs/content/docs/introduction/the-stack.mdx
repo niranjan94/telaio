@@ -1,0 +1,67 @@
+---
+title: The Stack
+description: Why PostgreSQL, Kysely, Redis, pg-boss, Pino, TypeBox, and the rest were chosen — and what each one does.
+---
+
+# The Stack
+
+Telaio's technology choices are fixed. This page explains what was chosen and why.
+
+## PostgreSQL + pg + Kysely
+
+PostgreSQL is the database. Not because other databases are bad — because committing to one lets Telaio optimize for it deeply. The CITEXT parser, the migration system, pg-boss running on the same instance: these all assume Postgres.
+
+`pg` is the Node.js PostgreSQL client. It is the most mature option, and it is what `pg-boss` also uses.
+
+Kysely is the query builder. It is SQL-first and fully type-safe — your DB schema flows through your queries. There is no magic schema inference, no ORM runtime, no N+1 footgun hidden behind a `.include()`. You write SQL, Kysely types it.
+
+**Why not Prisma?** Prisma requires code generation, a custom migration system, and a runtime that does not compose well with Kysely's approach. Teams that are deep in Prisma should not use Telaio.
+
+## Redis
+
+The cache layer uses Redis, wrapped in a `Cache` class with graceful degradation built in. When Redis is unavailable — whether by config or by connection failure — all cache operations silently no-op. The app keeps running.
+
+This is a deliberate architectural decision: **caching is a performance layer, not a hard dependency**. If Redis is down, requests are slower. They still succeed.
+
+## pg-boss
+
+pg-boss is the job queue. It runs entirely on Postgres — no RabbitMQ, no SQS, no extra infrastructure to provision or pay for. Jobs are ACID-backed: they survive crashes and are not lost on failure.
+
+The tradeoff: pg-boss adds load to your Postgres instance. For high-throughput queues, you may eventually want a dedicated queue system. For most applications, the simplicity of "same database, same credentials, same backup" outweighs the scale concern.
+
+## Pino
+
+Pino is the fastest structured logger for Node.js. In production, it outputs newline-delimited JSON. In development (when `pino-pretty` is installed), it outputs human-readable colored output. Telaio's logger auto-detects pino-pretty and uses it when available.
+
+Request logging uses child loggers — every log line from a request handler includes the request's correlation data automatically.
+
+## Zod and TypeBox
+
+Telaio uses two schema libraries for different jobs:
+
+**Zod** is used for environment/config validation. `loadConfig()` composes a Zod schema from enabled module fragments and validates `process.env` against it at startup. Zod's parse-and-throw model is ideal here — you want to fail fast with clear error messages if the environment is wrong.
+
+**TypeBox** is used for route request/response schemas. TypeBox generates JSON Schema that Fastify uses natively for request validation and `fast-json-stringify` response serialization. This is the correct tool at the HTTP layer — Zod does not generate JSON Schema that Fastify can consume.
+
+## AWS SDK v3
+
+The AWS SDK v3 is modular. Installing `@aws-sdk/client-s3` does not pull in SES, CloudWatch, or anything else. Telaio uses it for S3 (`@aws-sdk/client-s3`) and email via SES (`@aws-sdk/client-ses`).
+
+Credentials follow the SDK's default chain: environment variables, then shared credentials file, then IAM role. Explicit credentials are optional — production deployments on EC2 or ECS just work with the IAM role.
+
+## better-auth
+
+Telaio ships a first-party adapter for [better-auth](https://www.better-auth.com). It is the only natively supported auth library. Other libraries can be integrated via the `AuthAdapter<TSession>` interface — but there is no built-in adapter for them.
+
+better-auth is a full-featured auth framework: sessions, OAuth, magic links, organizations, API keys. The adapter wires its session resolution into Telaio's request lifecycle.
+
+## Optional Peer Dependencies
+
+Every heavy dependency in Telaio is an optional peer dependency. `pg`, `kysely`, `redis`, `pg-boss`, `@aws-sdk/client-s3`, `@aws-sdk/client-ses` — none are hard dependencies of the package. They are loaded via dynamic `import()` at runtime.
+
+If a required peer dep is missing, Telaio throws a clear error message:
+```
+telaio: createPool() requires 'pg' to be installed. Run: pnpm add pg
+```
+
+This means you only pay for what you use. A service that does not use S3 does not have `@aws-sdk/client-s3` in its `node_modules`.
