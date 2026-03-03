@@ -20,6 +20,7 @@ export class Cache {
   public redis: any | null = null;
 
   private _logger: Logger;
+  private _initPromise: Promise<void> | null = null;
 
   constructor(options?: CacheOptions & { logger?: Logger }) {
     this._logger =
@@ -31,7 +32,7 @@ export class Cache {
       return;
     }
 
-    this._initRedis(options?.url);
+    this._initPromise = this._initRedis(options?.url);
   }
 
   private async _initRedis(url?: string): Promise<void> {
@@ -62,11 +63,13 @@ export class Cache {
 
   /** Get a string value from cache. */
   async get(key: string): Promise<string | null> {
+    await this._initPromise;
     return (await this.redis?.get(key)) ?? null;
   }
 
   /** Set a string value in cache with optional TTL in seconds. */
   async set(key: string, value: string, ttl?: number): Promise<void> {
+    await this._initPromise;
     if (ttl) {
       await this.redis?.set(key, value, { EX: ttl });
     } else {
@@ -92,11 +95,13 @@ export class Cache {
 
   /** Delete a key from cache. */
   async delete(key: string): Promise<void> {
+    await this._initPromise;
     await this.redis?.del(key);
   }
 
   /** Gracefully close the Redis connection. */
   async close(): Promise<void> {
+    await this._initPromise;
     if (!this.redis) return;
     try {
       await this.redis.close();

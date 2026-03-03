@@ -21,7 +21,10 @@ describe.skipIf(skipE2e)('app lifecycle (E2E)', () => {
   });
 
   it('builds and starts a minimal app', async () => {
-    app = await createApp({ logger }).withPlugins({ autoload: false }).build();
+    app = await createApp({ logger })
+      .withSchemas(false)
+      .withPlugins({ autoload: false })
+      .build();
 
     await app.start({ port: 0 });
     const addresses = app.fastify.addresses();
@@ -33,6 +36,7 @@ describe.skipIf(skipE2e)('app lifecycle (E2E)', () => {
       config: { DATABASE_URL: databaseUrl },
       logger,
     })
+      .withSchemas(false)
       .withPlugins({ autoload: false })
       .withDatabase()
       .build();
@@ -47,6 +51,7 @@ describe.skipIf(skipE2e)('app lifecycle (E2E)', () => {
       config: { DATABASE_URL: databaseUrl },
       logger,
     })
+      .withSchemas(false)
       .withPlugins({ autoload: false })
       .withDatabase()
       .build();
@@ -60,6 +65,7 @@ describe.skipIf(skipE2e)('app lifecycle (E2E)', () => {
       config: { REDIS_URL: redisUrl, REDIS_ENABLED: true },
       logger,
     })
+      .withSchemas(false)
       .withPlugins({ autoload: false })
       .withCache()
       .build();
@@ -82,6 +88,7 @@ describe.skipIf(skipE2e)('app lifecycle (E2E)', () => {
       },
       logger,
     })
+      .withSchemas(false)
       .withPlugins({ autoload: false })
       .withDatabase()
       .withCache()
@@ -100,7 +107,10 @@ describe.skipIf(skipE2e)('app lifecycle (E2E)', () => {
   });
 
   it('health endpoint works on started app', async () => {
-    app = await createApp({ logger }).withPlugins({ autoload: false }).build();
+    app = await createApp({ logger })
+      .withSchemas(false)
+      .withPlugins({ autoload: false })
+      .build();
 
     const response = await app.fastify.inject({
       method: 'GET',
@@ -120,6 +130,7 @@ describe.skipIf(skipE2e)('app lifecycle (E2E)', () => {
       },
       logger,
     })
+      .withSchemas(false)
       .withPlugins({ autoload: false })
       .withDatabase()
       .withCache()

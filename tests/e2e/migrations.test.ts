@@ -20,9 +20,9 @@ describe.skipIf(skipE2e)('migrations (E2E)', () => {
   // biome-ignore lint/suspicious/noExplicitAny: generic database type
   let db: import('kysely').Kysely<any>;
 
-  beforeEach(() => {
-    pool = createPool({ connectionString: databaseUrl });
-    db = createDatabase(pool);
+  beforeEach(async () => {
+    pool = await createPool({ connectionString: databaseUrl });
+    db = await createDatabase(pool);
   });
 
   afterEach(async () => {

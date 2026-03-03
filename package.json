@@ -78,12 +78,11 @@
     "dev": "tsc --watch",
     "format": "biome check --write --unsafe",
     "lint": "biome check",
-    "test": "biome check && vitest run",
     "test:unit": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:types": "vitest run --typecheck.only",
-    "test:all": "vitest run && vitest run --config vitest.integration.config.ts && vitest run --config vitest.e2e.config.ts && vitest run --typecheck.only",
+    "test": "pnpm lint && pnpm test:unit && pnpm test:integration && pnpm test:e2e && pnpm test:types",
     "prepublishOnly": "pnpm build"
   },
   "keywords": [

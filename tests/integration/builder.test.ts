@@ -23,7 +23,10 @@ describe('AppBuilder', () => {
   });
 
   it('builds a minimal app with health endpoint', async () => {
-    app = await createApp({ logger }).withPlugins({ autoload: false }).build();
+    app = await createApp({ logger })
+      .withSchemas(false)
+      .withPlugins({ autoload: false })
+      .build();
 
     const response = await app.fastify.inject({
       method: 'GET',
@@ -37,6 +40,7 @@ describe('AppBuilder', () => {
   it('exposes config on the app', async () => {
     const config = { APP_NAME: 'TestApp', BASE_DIR: '/tmp' };
     app = await createApp({ config, logger })
+      .withSchemas(false)
       .withPlugins({ autoload: false })
       .build();
 
@@ -44,13 +48,19 @@ describe('AppBuilder', () => {
   });
 
   it('exposes logger on the app', async () => {
-    app = await createApp({ logger }).withPlugins({ autoload: false }).build();
+    app = await createApp({ logger })
+      .withSchemas(false)
+      .withPlugins({ autoload: false })
+      .build();
 
     expect(app.logger).toBe(logger);
   });
 
   it('handles RequestError subclasses with correct status and body', async () => {
-    app = await createApp({ logger }).withPlugins({ autoload: false }).build();
+    app = await createApp({ logger })
+      .withSchemas(false)
+      .withPlugins({ autoload: false })
+      .build();
 
     app.fastify.get('/boom', async () => {
       throw new NotFoundError('gone forever');
@@ -69,7 +79,10 @@ describe('AppBuilder', () => {
   });
 
   it('handles BadRequestError with correct status', async () => {
-    app = await createApp({ logger }).withPlugins({ autoload: false }).build();
+    app = await createApp({ logger })
+      .withSchemas(false)
+      .withPlugins({ autoload: false })
+      .build();
 
     app.fastify.get('/bad', async () => {
       throw new BadRequestError('bad thing');
@@ -86,7 +99,10 @@ describe('AppBuilder', () => {
   });
 
   it('handles unknown errors with 500 and logId', async () => {
-    app = await createApp({ logger }).withPlugins({ autoload: false }).build();
+    app = await createApp({ logger })
+      .withSchemas(false)
+      .withPlugins({ autoload: false })
+      .build();
 
     app.fastify.get('/unknown', async () => {
       throw new Error('something broke');
@@ -106,7 +122,10 @@ describe('AppBuilder', () => {
   });
 
   it('registers built-in schemas on the fastify instance', async () => {
-    app = await createApp({ logger }).withPlugins({ autoload: false }).build();
+    app = await createApp({ logger })
+      .withSchemas(false)
+      .withPlugins({ autoload: false })
+      .build();
 
     // Built-in schemas should be retrievable
     const schemas = app.fastify.getSchemas();
@@ -119,6 +138,7 @@ describe('AppBuilder', () => {
 
   it('ephemeral build skips hooks and health endpoint', async () => {
     app = await createApp({ logger })
+      .withSchemas(false)
       .withPlugins({ autoload: false })
       .asEphemeral()
       .build();
@@ -137,6 +157,7 @@ describe('AppBuilder', () => {
     const onClose = vi.fn(async () => {});
 
     app = await createApp({ logger })
+      .withSchemas(false)
       .withPlugins({ autoload: false })
       .onReady(onReady)
       .onClose(onClose)
@@ -152,6 +173,7 @@ describe('AppBuilder', () => {
 
   it('withSwagger configures OpenAPI metadata', async () => {
     app = await createApp({ logger })
+      .withSchemas(false)
       .withPlugins({ autoload: false })
       .withSwagger({
         info: { title: 'Test API', version: '2.0.0' },
@@ -175,6 +197,7 @@ describe('AppBuilder', () => {
 
   it('withApiDocs registers /docs and /docs/json routes', async () => {
     app = await createApp({ logger })
+      .withSchemas(false)
       .withPlugins({ autoload: false })
       .withApiDocs()
       .build();
@@ -198,7 +221,10 @@ describe('AppBuilder', () => {
   });
 
   it('start and stop lifecycle works', async () => {
-    app = await createApp({ logger }).withPlugins({ autoload: false }).build();
+    app = await createApp({ logger })
+      .withSchemas(false)
+      .withPlugins({ autoload: false })
+      .build();
 
     // Start on a random port to avoid conflicts
     await app.start({ port: 0 });
@@ -213,6 +239,7 @@ describe('AppBuilder', () => {
 
   it('builder methods are chainable', async () => {
     const builder = createApp({ logger })
+      .withSchemas(false)
       .withPlugins({ autoload: false, cors: false, helmet: false })
       .withSwagger({ info: { title: 'Chain Test' } })
       .withApiDocs()
@@ -240,6 +267,7 @@ describe('AppBuilder', () => {
 
     it('hydrates session from adapter', async () => {
       app = await createApp({ logger })
+        .withSchemas(false)
         .withPlugins({ autoload: false })
         .withAuth(testAdapter)
         .build();
@@ -260,6 +288,7 @@ describe('AppBuilder', () => {
 
     it('sets null session when no auth header', async () => {
       app = await createApp({ logger })
+        .withSchemas(false)
         .withPlugins({ autoload: false })
         .withAuth(testAdapter)
         .build();
@@ -279,6 +308,7 @@ describe('AppBuilder', () => {
 
     it('withAuth guard rejects unauthenticated requests', async () => {
       app = await createApp({ logger })
+        .withSchemas(false)
         .withPlugins({ autoload: false })
         .withAuth(testAdapter)
         .build();
@@ -300,6 +330,7 @@ describe('AppBuilder', () => {
 
     it('withAuth guard allows authenticated requests', async () => {
       app = await createApp({ logger })
+        .withSchemas(false)
         .withPlugins({ autoload: false })
         .withAuth(testAdapter)
         .build();
@@ -323,6 +354,7 @@ describe('AppBuilder', () => {
 
     it('withAuth guard enforces roles', async () => {
       app = await createApp({ logger })
+        .withSchemas(false)
         .withPlugins({ autoload: false })
         .withAuth(testAdapter)
         .build();
@@ -346,6 +378,7 @@ describe('AppBuilder', () => {
 
     it('withAuth guard allows matching roles', async () => {
       app = await createApp({ logger })
+        .withSchemas(false)
         .withPlugins({ autoload: false })
         .withAuth(testAdapter)
         .build();
@@ -368,6 +401,7 @@ describe('AppBuilder', () => {
 
     it('withAuth authorize callback can deny access', async () => {
       app = await createApp({ logger })
+        .withSchemas(false)
         .withPlugins({ autoload: false })
         .withAuth(testAdapter)
         .build();
