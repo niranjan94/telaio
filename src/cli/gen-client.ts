@@ -102,8 +102,11 @@ export function registerGenClientCommand(program: Command): void {
         const app = await resolveTelaioApp(appPath, cwd);
         await app.fastify.ready();
 
-        // Extract swagger spec
-        const swagger = app.fastify.swagger?.();
+        // Extract swagger spec (swagger() comes from @fastify/swagger augmentation)
+        const fastify = app.fastify as import('fastify').FastifyInstance & {
+          swagger?: () => Record<string, unknown>;
+        };
+        const swagger = fastify.swagger?.();
         if (!swagger) {
           throw new Error(
             'telaio: gen-client requires @fastify/swagger to be registered. ' +
