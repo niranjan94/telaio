@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Dark rounded background -->
+  <rect width="32" height="32" rx="7" fill="#09090b"/>
+  <!-- Top beam -->
+  <rect x="4" y="6" width="24" height="4" fill="#c8a97e"/>
+  <!-- Left upright -->
+  <rect x="4" y="6" width="4" height="20" fill="#c8a97e"/>
+  <!-- Right upright -->
+  <rect x="24" y="6" width="4" height="20" fill="#c8a97e"/>
+  <!-- Thread 1 (left) -->
+  <rect x="11" y="10" width="2" height="16" fill="#c8a97e" fill-opacity="0.5"/>
+  <!-- Thread 2 (center) -->
+  <rect x="15" y="10" width="2" height="16" fill="#c8a97e" fill-opacity="0.8"/>
+  <!-- Thread 3 (right) -->
+  <rect x="19" y="10" width="2" height="16" fill="#c8a97e" fill-opacity="0.5"/>
+</svg>
