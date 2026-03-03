@@ -2,6 +2,7 @@
   "extends": "./tsconfigs/base.json",
   "compilerOptions": {
     "target": "ES2022",
+    "jsx": "react-jsx",
     "declarationMap": true,
     "outDir": "dist",
     "rootDir": "src"
