@@ -209,7 +209,12 @@ export function loadConfig<
 >(
   options: LoadConfigOptions<TModules, TExtend> = {},
 ): InferConfig<TModules, TExtend> {
-  const { modules = {} as TModules, extend, skipEnvLoad = false, source } = options;
+  const {
+    modules = {} as TModules,
+    extend,
+    skipEnvLoad = false,
+    source,
+  } = options;
 
   if (!skipEnvLoad) {
     dotenv.config({ quiet: true });
