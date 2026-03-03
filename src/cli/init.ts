@@ -49,18 +49,10 @@ export default async function (fastify: FastifyInstance) {
 
 /** Template for tsconfig.json. */
 const TSCONFIG_TEMPLATE = `{
+  "extends": "telaio/tsconfig",
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "declaration": true,
-    "sourceMap": true,
     "outDir": "dist",
     "rootDir": "src",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
     "paths": {
       "@/*": ["./src/*"]
     }

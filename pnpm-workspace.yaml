@@ -1,3 +1,5 @@
+approveBuildsForPackages: '@parcel/watcher'
+
 onlyBuiltDependencies:
   - cpu-features
   - esbuild

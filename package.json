@@ -4,7 +4,8 @@
   "description": "A highly configurable, TypeScript-first Fastify framework",
   "type": "module",
   "files": [
-    "dist"
+    "dist",
+    "tsconfigs"
   ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -60,7 +61,8 @@
     "./cli": {
       "types": "./dist/cli/index.d.ts",
       "import": "./dist/cli/index.js"
-    }
+    },
+    "./tsconfig": "./tsconfigs/base.json"
   },
   "bin": {
     "telaio": "./dist/cli/index.js"
@@ -132,7 +134,9 @@
     "pg-boss": "^12.0.0",
     "react-email": ">=4.0.0",
     "redis": "^5.0.0",
-    "tsx": ">=4.0.0"
+    "tsx": ">=4.0.0",
+    "@parcel/watcher": "^2.0.0",
+    "concurrently": "^9.0.0"
   },
   "peerDependenciesMeta": {
     "@aws-sdk/client-s3": {
@@ -200,14 +204,22 @@
     },
     "tsx": {
       "optional": true
+    },
+    "@parcel/watcher": {
+      "optional": true
+    },
+    "concurrently": {
+      "optional": true
     }
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",
+    "@parcel/watcher": "^2.5.6",
     "@testcontainers/postgresql": "^11.12.0",
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^24.10.13",
     "@types/pg": "^8.0.0",
+    "concurrently": "^9.2.1",
     "postgres-array": "^3.0.4",
     "testcontainers": "^11.12.0",
     "typescript": "^5.9.3",
