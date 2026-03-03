@@ -4,7 +4,7 @@ export {
   createApp,
 } from './builder.js';
 export {
-  type ConfigModuleFlags,
+  type ConfigModules,
   type InferConfig,
   type LoadConfigOptions,
   loadConfig,
