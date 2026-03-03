@@ -109,6 +109,8 @@ import {
   createMigrator,
   createMigrationFile,
   migrateToLatest,
+  migrateUp,
+  migrateDown,
   runFrameworkMigrations,
 } from 'telaio/db/migrations';
 ```
@@ -118,7 +120,9 @@ import {
 | `createMigrator(options)` | Creates a Kysely `Migrator` pointed at your migrations directory (`options.migrationsDir`) |
 | `createMigrationFile(name, dir)` | Scaffolds a new timestamped migration file (note: `name` first, `dir` second) |
 | `migrateToLatest(options)` | Runs all pending app migrations (runs framework migrations first internally) |
-| `runFrameworkMigrations(db)` | Runs Telaio's own internal migrations — called automatically by `migrateToLatest` |
+| `migrateUp(options)` | Runs the next pending app migration (runs framework migrations first internally) |
+| `migrateDown(options)` | Rolls back the last app migration (runs framework migrations first internally) |
+| `runFrameworkMigrations(db)` | Runs Telaio's own internal migrations -- called automatically by the above functions |
 
 Telaio stores its internal migration state in `_telaio_migrations`. Your app migrations use a separate table (Kysely defaults to `kysely_migration`). The two tables never conflict.
 

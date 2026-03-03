@@ -138,6 +138,8 @@ import {
   createMigrator,
   createMigrationFile,
   migrateToLatest,
+  migrateUp,
+  migrateDown,
   runFrameworkMigrations,
 } from 'telaio/db/migrations';
 ```
@@ -146,7 +148,9 @@ import {
 |----------|-----------|-------------|
 | `createMigrator` | `(options: MigratorOptions) => Migrator` | Creates a Kysely `Migrator` pointing at your migrations directory |
 | `createMigrationFile` | `(name: string, dir: string) => Promise<string>` | Scaffolds a timestamped migration file. Returns the created filename. |
-| `migrateToLatest` | `(options: MigratorOptions) => Promise<{ framework: MigrationResult[]; user: MigrationResult[] }>` | Runs framework migrations then all pending app migrations |
+| `migrateToLatest` | `(options: MigratorOptions) => Promise<MigrateResult>` | Runs framework migrations then all pending app migrations |
+| `migrateUp` | `(options: MigratorOptions) => Promise<MigrateResult>` | Runs framework migrations then the next pending app migration (single step) |
+| `migrateDown` | `(options: MigratorOptions) => Promise<MigrateResult>` | Runs framework migrations then rolls back the last app migration (single step) |
 | `runFrameworkMigrations` | `(db: Kysely<any>, logger?) => Promise<MigrationResult[]>` | Runs Telaio's own internal migrations only |
 
 ```typescript
