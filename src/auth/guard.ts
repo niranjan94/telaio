@@ -21,6 +21,14 @@ export function registerGuardAdapter(adapter: AuthAdapter<any>): void {
   registeredAdapter = adapter;
 }
 
+/**
+ * Resets the registered auth adapter to null.
+ * Use in test afterEach to prevent adapter state leaking between tests.
+ */
+export function resetGuardAdapter(): void {
+  registeredAdapter = null;
+}
+
 /** Options for the withAuth route guard. */
 export interface WithAuthOptions {
   /** Scopes the route is restricted to. */

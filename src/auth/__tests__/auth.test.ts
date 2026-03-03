@@ -2,7 +2,7 @@ import type { FastifyRequest } from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
 import { ForbiddenError, UnauthorizedError } from '../../errors/index.js';
 import type { AuthAdapter } from '../adapter.js';
-import { registerGuardAdapter, withAuth } from '../guard.js';
+import { registerGuardAdapter, resetGuardAdapter, withAuth } from '../guard.js';
 import { transformToHeaders } from '../plugin.js';
 
 describe('transformToHeaders', () => {
@@ -49,6 +49,29 @@ describe('auth module exports', () => {
     expect(mod.transformToHeaders).toBeDefined();
     expect(mod.registerGuardAdapter).toBeDefined();
     expect(typeof mod.registerGuardAdapter).toBe('function');
+  });
+
+  it('exports resetGuardAdapter for test isolation', async () => {
+    const mod = await import('../index.js');
+    expect(mod.resetGuardAdapter).toBeDefined();
+    expect(typeof mod.resetGuardAdapter).toBe('function');
+  });
+
+  it('resetGuardAdapter clears the registered adapter so withAuth uses generic guard', () => {
+    // Register an adapter with validateScope (activates adapter guard path)
+    registerGuardAdapter({
+      getSession: async () => ({ id: 'test' }),
+      validateScope: () => true,
+    } as AuthAdapter<{ id: string }>);
+
+    // Reset it
+    resetGuardAdapter();
+
+    // withAuth should now use generic guard (includes 400 in schema)
+    const result = withAuth({ scopes: ['x'] });
+    const response = (result.schema as Record<string, Record<string, unknown>>)
+      .response;
+    expect(response[400]).toBeDefined(); // generic guard adds 400
   });
 });
 
