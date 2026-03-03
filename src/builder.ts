@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import path from 'node:path';
 import fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import type { Logger } from 'pino';
 import type { AuthAdapter } from './auth/adapter.js';
@@ -85,7 +86,7 @@ export class AppBuilder<
   private _pluginOptions: PluginOptions = {};
   private _swaggerOptions: SwaggerOptions | null = null;
   private _scalarOptions: ScalarOptions | null = null;
-  private _schemasDir: string | null = null;
+  private _schemasDir: string | null | false = null;
   private _dbOptions: WithDatabaseOptions | null = null;
   private _cacheOptions: WithCacheOptions | null = null;
   // biome-ignore lint/suspicious/noExplicitAny: session type varies
@@ -186,8 +187,12 @@ export class AppBuilder<
     >;
   }
 
-  /** Set the directory for auto-registering TypeBox schemas. */
-  withSchemas(schemasDir: string): AppBuilder<F, TSession, TConfig> {
+  /**
+   * Set the directory for auto-registering TypeBox schemas.
+   * Pass false to disable schema auto-registration entirely.
+   * Defaults to `src/schemas` relative to baseDir when not called.
+   */
+  withSchemas(schemasDir: string | false): AppBuilder<F, TSession, TConfig> {
     this._schemasDir = schemasDir;
     return this;
   }
@@ -324,9 +329,11 @@ export class AppBuilder<
     // 3. Register built-in schemas
     await registerBuiltinSchemas(app);
 
-    // 4. Register user schemas from directory
-    if (this._schemasDir) {
-      await registerSchemas(app, this._schemasDir);
+    // 4. Register user schemas from directory (defaults to src/schemas)
+    if (this._schemasDir !== false) {
+      const schemasDir =
+        this._schemasDir ?? path.join(baseDir, 'src', 'schemas');
+      await registerSchemas(app, schemasDir);
     }
 
     // 5. Register Scalar API docs

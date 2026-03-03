@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import type { Logger } from 'pino';
@@ -95,7 +96,9 @@ async function tryImport(moduleName: string): Promise<any | null> {
  * Plugins whose peer dep is not installed are silently skipped
  * unless explicitly enabled (truthy value in options).
  *
- * @param skipAutoload - If true, skips autoload registration (caller will handle it separately).
+ * @param server FastifyInstance
+ * @param pluginOptions PluginOptions
+ * @param options Object with logger, baseDir, and skipAutoload properties
  */
 export async function registerPlugins(
   server: FastifyInstance,
@@ -162,8 +165,15 @@ export async function registerPlugins(
         allowedHeaders: corsConfig.allowedHeaders ?? [
           'authorization',
           'content-type',
+          'x-locale',
           'origin',
+          'pragma',
+          'cache-control',
           'accept',
+          'keep-alive',
+          'if-modified-since',
+          'x-requested-with',
+          'dnt',
         ],
         maxAge: corsConfig.maxAge ?? 86400,
         methods: corsConfig.methods ?? [
@@ -194,6 +204,22 @@ export async function registerPlugins(
       await server.register(mod.default, {
         enableCSPNonces: false,
         ...opts,
+        contentSecurityPolicy: {
+          ...(typeof opts.contentSecurityPolicy === 'object' ? opts : {}),
+          directives: {
+            ...(typeof opts.contentSecurityPolicy === 'object'
+              ? opts.contentSecurityPolicy.directives
+              : {}),
+            'script-src': [
+              ...(typeof opts.contentSecurityPolicy === 'object' &&
+              opts.contentSecurityPolicy.directives
+                ? opts.contentSecurityPolicy.directives['script-src'] || []
+                : []),
+              "'self'",
+              'https://cdn.jsdelivr.net/npm/@scalar/api-reference',
+            ],
+          },
+        },
       });
     }
   }
@@ -227,7 +253,8 @@ export async function registerPlugins(
         typeof pluginOptions.autoload === 'object'
           ? pluginOptions.autoload
           : {};
-      const routesDir = autoloadConfig.dir ?? path.join(baseDir, 'routes');
+      const routesDir =
+        autoloadConfig.dir ?? path.join(baseDir, 'src', 'routes');
       logger.debug({ routesDir }, 'autoloading routes');
       await server.register(mod.default, {
         dir: routesDir,
@@ -256,7 +283,14 @@ export async function registerAutoload(
     const autoloadConfig =
       typeof pluginOptions.autoload === 'object' ? pluginOptions.autoload : {};
     const routesDir =
-      autoloadConfig.dir ?? path.join(options.baseDir, 'routes');
+      autoloadConfig.dir ?? path.join(options.baseDir, 'src', 'routes');
+
+    if (!fs.existsSync(routesDir)) {
+      throw new Error(
+        `Routes directory not found: ${routesDir}. Create the directory or set autoload.dir in withPlugins().`,
+      );
+    }
+
     options.logger.debug({ routesDir }, 'autoloading routes');
     await server.register(mod.default, {
       dir: routesDir,

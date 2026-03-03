@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import fastGlob from 'fast-glob';
 import type { FastifyInstance } from 'fastify';
@@ -170,6 +171,12 @@ export async function registerSchemas(
   fastify: FastifyInstance,
   schemasDir: string,
 ) {
+  if (!fs.existsSync(schemasDir)) {
+    throw new Error(
+      `Schemas directory not found: ${schemasDir}. Create the directory or call .withSchemas(false) to disable.`,
+    );
+  }
+
   const pattern = `${fastGlob.convertPathToPattern(schemasDir)}/**/*.(js|ts)`;
   const files = await fastGlob.async([pattern], {
     ignore: ['**/utils.ts', '**/utils.js', '**/index.ts', '**/index.js'],

@@ -11,6 +11,7 @@ import {
   Paginated,
   PaginationMetaSchema,
   PlainEnum,
+  registerSchemas,
   SortPaginationParamsSchema,
   Timestamp,
   TypeName,
@@ -100,6 +101,16 @@ describe('Paginated', () => {
     expect(paginated.properties).toHaveProperty('data');
     expect(paginated.properties).toHaveProperty('meta');
     expect(paginated.$id).toBe('PaginatedTestItem');
+  });
+});
+
+describe('registerSchemas', () => {
+  it('throws when the schemas directory does not exist', async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: mock fastify instance
+    const fakeFastify = {} as any;
+    await expect(
+      registerSchemas(fakeFastify, '/nonexistent/schemas/directory'),
+    ).rejects.toThrow('Schemas directory not found');
   });
 });
 
