@@ -26,11 +26,61 @@ export { csvString, envBoolean } from './schemas.js';
 /** Brand symbol used to identify `defineConfig()` results. */
 const TELAIO_CONFIG_BRAND = Symbol.for('telaio-config');
 
-/** Options accepted by `defineConfig()` -- excludes runtime-only fields. */
+/** Client generation config for hey-api OpenAPI client. */
+export interface ClientConfig {
+  /** Output directory for generated client. Default: 'client'. */
+  output?: string;
+  /** hey-api plugins to use. Default: standard set (react-query, typescript, schemas). */
+  plugins?: (string | Record<string, unknown>)[];
+  /** Whether client generation is enabled in dev mode. Default: true. */
+  enabled?: boolean;
+}
+
+/** Queue consumer config. */
+export interface ConsumerConfig {
+  /** Path to queue registry module. Default: 'src/queues/registry/index.ts'. */
+  registry?: string;
+}
+
+/** Dev command config -- additive to auto-discovered processes. */
+export interface DevConfig {
+  /** Additional processes to run alongside auto-discovered ones. */
+  processes?: { name: string; command: string; prefixColor?: string }[];
+  /** File watcher configuration. */
+  watch?: {
+    /** Additional paths to watch (merged with defaults: src, .env). */
+    include?: string[];
+    /** Additional paths to ignore (merged with defaults: node_modules, .git, dist). */
+    ignore?: string[];
+    /** Debounce interval in ms. Default: 300. */
+    debounceMs?: number;
+  };
+  /** Log file path for tee output. Default: 'output.log'. */
+  output?: string;
+}
+
+/** CLI metadata extracted from a defineConfig result (no env loading needed). */
+export interface CliMetadata {
+  app?: string;
+  client?: ClientConfig;
+  consumer?: ConsumerConfig;
+  dev?: DevConfig;
+}
+
+/** Options accepted by `defineConfig()` -- excludes runtime-only fields, adds CLI metadata. */
 export type DefineConfigOptions<
   TFlags extends ConfigModuleFlags = ConfigModuleFlags,
   TExtend extends z.ZodType = z.ZodObject<Record<string, never>>,
-> = Omit<LoadConfigOptions<TFlags, TExtend>, 'skipEnvLoad' | 'source'>;
+> = Omit<LoadConfigOptions<TFlags, TExtend>, 'skipEnvLoad' | 'source'> & {
+  /** Path to app builder module. Default: auto-discover. */
+  app?: string;
+  /** Client generation config. */
+  client?: ClientConfig;
+  /** Queue consumer config. */
+  consumer?: ConsumerConfig;
+  /** Dev command config. */
+  dev?: DevConfig;
+};
 
 /** Branded result returned by `defineConfig()`. */
 export type DefineConfigResult<
@@ -65,6 +115,19 @@ export function isDefineConfigResult(
     value !== null &&
     (value as Record<symbol, unknown>)[TELAIO_CONFIG_BRAND] === true
   );
+}
+
+/**
+ * Extracts CLI metadata from a branded defineConfig result without loading env vars.
+ * Used by the CLI to read app/client/consumer/dev settings without triggering Zod parsing.
+ */
+export function extractCliMetadata(result: DefineConfigResult): CliMetadata {
+  return {
+    app: result.app,
+    client: result.client,
+    consumer: result.consumer,
+    dev: result.dev,
+  };
 }
 
 export type {
