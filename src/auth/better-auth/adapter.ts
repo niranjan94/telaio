@@ -31,7 +31,7 @@ export interface VerifiedApiKey {
   name: string | null;
   start: string;
   prefix: string | null;
-  userId: string | null;
+  referenceId: string | null;
   refillInterval: number | null;
   refillAmount: number | null;
   lastRefillAt: Date | null;

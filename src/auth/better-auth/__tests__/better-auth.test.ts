@@ -988,7 +988,7 @@ describe('createBetterAuthAdapter', () => {
     name: 'Test Key',
     start: 'vul_',
     prefix: 'vul',
-    userId: 'u1',
+    referenceId: 'u1',
     refillInterval: null,
     refillAmount: null,
     lastRefillAt: null,
@@ -1046,7 +1046,7 @@ describe('createBetterAuthAdapter', () => {
         body: { key: 'vul_secret123' },
       });
       expect(resolveSession).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'key-1', userId: 'u1' }),
+        expect.objectContaining({ id: 'key-1', referenceId: 'u1' }),
       );
     });
 
