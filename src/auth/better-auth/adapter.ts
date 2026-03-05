@@ -22,7 +22,7 @@ interface BetterAuthLike {
     verifyApiKey?(options: { key: string }): Promise<{
       valid: boolean;
       error: { message: string; code: string } | null;
-      key: Record<string, unknown> | null;
+      key: VerifiedApiKey | null;
     }>;
   };
   handler(request: Request): Promise<Response>;
@@ -231,9 +231,7 @@ async function resolveFromApiKey<TSession>(
   const result = await auth.api.verifyApiKey({ key });
   if (!result.valid || !result.key) return null;
 
-  const session = await apiKeyConfig.resolveSession(
-    result.key as VerifiedApiKey,
-  );
+  const session = await apiKeyConfig.resolveSession(result.key);
   if (!session) return null;
 
   if (onSession) {
