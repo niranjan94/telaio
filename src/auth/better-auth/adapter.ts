@@ -147,7 +147,7 @@ export function createBetterAuthAdapter<TSession>(
         { cookieAuthState: [] },
       ];
       if (scopes.includes('apiKey')) {
-        entries.push({ apiKey: [] });
+        entries.unshift({ apiKey: [] });
       }
       return entries;
     },
