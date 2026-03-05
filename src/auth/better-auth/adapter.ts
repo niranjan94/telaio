@@ -19,8 +19,38 @@ interface BetterAuthLike {
       id: string;
       role: string;
     } | null>;
+    verifyApiKey?(options: { key: string }): Promise<{
+      valid: boolean;
+      error: { message: string; code: string } | null;
+      key: Record<string, unknown> | null;
+    }>;
   };
   handler(request: Request): Promise<Response>;
+}
+
+/** Represents a verified API key returned by better-auth's API key plugin. */
+export interface VerifiedApiKey {
+  id: string;
+  name: string | null;
+  start: string;
+  prefix: string | null;
+  userId: string | null;
+  refillInterval: number | null;
+  refillAmount: number | null;
+  lastRefillAt: Date | null;
+  enabled: boolean;
+  rateLimitEnabled: boolean;
+  rateLimitTimeWindow: number | null;
+  rateLimitMax: number | null;
+  requestCount: number;
+  remaining: number | null;
+  lastRequest: Date | null;
+  expiresAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  permissions: Record<string, string[]> | null;
+  metadata: Record<string, unknown> | null;
+  [key: string]: unknown;
 }
 
 /** Options for createBetterAuthAdapter(). */
@@ -37,6 +67,13 @@ export interface CreateBetterAuthAdapterOptions<TSession = unknown> {
   skipPaths?: string[];
   /** Post-processing hook called after session resolution. Return null to reject, throw to error. */
   onSession?: (session: TSession, headers: Headers) => Promise<TSession | null>;
+  /** API key authentication fallback. When configured, API keys are checked if cookie session is absent. */
+  apiKey?: {
+    /** Header name for API key. @default 'x-api-key' */
+    headerName?: string;
+    /** Build a session from a verified API key. Called after telaio verifies the key via better-auth. */
+    resolveSession: (key: VerifiedApiKey) => Promise<TSession | null>;
+  };
 }
 
 /**
@@ -53,12 +90,16 @@ export function createBetterAuthAdapter<TSession>(
     basePath = '/auth',
     skipPaths = ['/auth/sign-out'],
     onSession,
+    apiKey: apiKeyConfig,
   } = options;
 
   return {
     async getSession(headers: Headers): Promise<TSession | null> {
       const res = await auth.api.getSession({ headers });
-      if (!res) return null;
+
+      if (!res) {
+        return resolveFromApiKey(auth, apiKeyConfig, headers, onSession);
+      }
 
       let session: TSession;
 
@@ -161,4 +202,43 @@ export function createBetterAuthAdapter<TSession>(
       return { 400: AutoRef(GenericErrorResponseSchema) };
     },
   };
+}
+
+/**
+ * Attempts to resolve a session from an API key header when cookie-based
+ * session resolution returns null. Returns null if API key auth is not
+ * configured or the key is missing/invalid.
+ */
+async function resolveFromApiKey<TSession>(
+  auth: BetterAuthLike,
+  apiKeyConfig: CreateBetterAuthAdapterOptions<TSession>['apiKey'],
+  headers: Headers,
+  onSession?: (session: TSession, headers: Headers) => Promise<TSession | null>,
+): Promise<TSession | null> {
+  if (!apiKeyConfig) return null;
+
+  const headerName = apiKeyConfig.headerName ?? 'x-api-key';
+  const key = headers.get(headerName);
+  if (!key) return null;
+
+  if (!auth.api.verifyApiKey) {
+    throw new Error(
+      'auth.api.verifyApiKey is required when apiKey option is configured. ' +
+        'Make sure the API key plugin is configured in your better-auth instance.',
+    );
+  }
+
+  const result = await auth.api.verifyApiKey({ key });
+  if (!result.valid || !result.key) return null;
+
+  const session = await apiKeyConfig.resolveSession(
+    result.key as VerifiedApiKey,
+  );
+  if (!session) return null;
+
+  if (onSession) {
+    return onSession(session, headers);
+  }
+
+  return session;
 }

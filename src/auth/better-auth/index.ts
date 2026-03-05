@@ -2,6 +2,7 @@
 export {
   type CreateBetterAuthAdapterOptions,
   createBetterAuthAdapter,
+  type VerifiedApiKey,
 } from './adapter.js';
 
 // Client helpers

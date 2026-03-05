@@ -912,9 +912,9 @@ describe('createBetterAuthAdapter', () => {
     const adapter = createBetterAuthAdapter({ auth });
     const entries = adapter.security?.(['apiKey'] as never[]);
     expect(entries).toEqual([
+      { apiKey: [] },
       { cookieAuthSessionToken: [] },
       { cookieAuthState: [] },
-      { apiKey: [] },
     ]);
   });
 
@@ -979,6 +979,216 @@ describe('createBetterAuthAdapter', () => {
       }),
       expect.any(Headers),
     );
+  });
+
+  // -- API key session resolution tests --
+
+  const mockVerifiedKey = {
+    id: 'key-1',
+    name: 'Test Key',
+    start: 'vul_',
+    prefix: 'vul',
+    userId: 'u1',
+    refillInterval: null,
+    refillAmount: null,
+    lastRefillAt: null,
+    enabled: true,
+    rateLimitEnabled: false,
+    rateLimitTimeWindow: null,
+    rateLimitMax: null,
+    requestCount: 42,
+    remaining: null,
+    lastRequest: null,
+    expiresAt: null,
+    createdAt: new Date('2025-01-01'),
+    updatedAt: new Date('2025-01-01'),
+    permissions: null,
+    metadata: null,
+  };
+
+  function createApiKeyAuth(
+    sessionData: {
+      session: Record<string, unknown>;
+      user: Record<string, unknown>;
+    } | null = null,
+    verifyResult: {
+      valid: boolean;
+      error: { message: string; code: string } | null;
+      key: Record<string, unknown> | null;
+    } = { valid: true, error: null, key: mockVerifiedKey },
+  ) {
+    return {
+      api: {
+        getSession: vi.fn().mockResolvedValue(sessionData),
+        getActiveMember: vi.fn().mockResolvedValue(null),
+        verifyApiKey: vi.fn().mockResolvedValue(verifyResult),
+      },
+      handler: vi.fn().mockResolvedValue(new Response('ok')),
+    };
+  }
+
+  it('apiKey: resolves session when cookie session is null and x-api-key header present', async () => {
+    const auth = createApiKeyAuth();
+    const resolveSession = vi
+      .fn()
+      .mockResolvedValue({ id: 'api-session', user: { id: 'u1' } });
+    const adapter = createBetterAuthAdapter({
+      auth,
+      apiKey: { resolveSession },
+    });
+
+    const headers = new Headers({ 'x-api-key': 'vul_secret123' });
+    const result = await adapter.getSession(headers);
+
+    expect(result).toEqual({ id: 'api-session', user: { id: 'u1' } });
+    expect(auth.api.verifyApiKey).toHaveBeenCalledWith({
+      key: 'vul_secret123',
+    });
+    expect(resolveSession).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'key-1', userId: 'u1' }),
+    );
+  });
+
+  it('apiKey: does not call resolveSession when cookie session exists', async () => {
+    const auth = createApiKeyAuth({
+      session: { id: 's1', userId: 'u1' },
+      user: { id: 'u1', name: 'Test' },
+    });
+    const resolveSession = vi.fn();
+    const adapter = createBetterAuthAdapter({
+      auth,
+      apiKey: { resolveSession },
+    });
+
+    const headers = new Headers({ 'x-api-key': 'vul_secret123' });
+    const result = await adapter.getSession(headers);
+
+    expect(result).toEqual({
+      id: 's1',
+      userId: 'u1',
+      user: { id: 'u1', name: 'Test' },
+    });
+    expect(resolveSession).not.toHaveBeenCalled();
+    expect(auth.api.verifyApiKey).not.toHaveBeenCalled();
+  });
+
+  it('apiKey: returns null when header is missing', async () => {
+    const auth = createApiKeyAuth();
+    const resolveSession = vi.fn();
+    const adapter = createBetterAuthAdapter({
+      auth,
+      apiKey: { resolveSession },
+    });
+
+    const result = await adapter.getSession(new Headers());
+
+    expect(result).toBeNull();
+    expect(auth.api.verifyApiKey).not.toHaveBeenCalled();
+    expect(resolveSession).not.toHaveBeenCalled();
+  });
+
+  it('apiKey: returns null when verifyApiKey returns invalid', async () => {
+    const auth = createApiKeyAuth(null, {
+      valid: false,
+      error: { message: 'Invalid key', code: 'INVALID_KEY' },
+      key: null,
+    });
+    const resolveSession = vi.fn();
+    const adapter = createBetterAuthAdapter({
+      auth,
+      apiKey: { resolveSession },
+    });
+
+    const headers = new Headers({ 'x-api-key': 'vul_badkey' });
+    const result = await adapter.getSession(headers);
+
+    expect(result).toBeNull();
+    expect(resolveSession).not.toHaveBeenCalled();
+  });
+
+  it('apiKey: runs onSession hook on API key sessions', async () => {
+    const auth = createApiKeyAuth();
+    const resolveSession = vi
+      .fn()
+      .mockResolvedValue({ id: 'api-session', user: { id: 'u1' } });
+    const onSession = vi.fn().mockImplementation((session) => ({
+      ...session,
+      enriched: true,
+    }));
+    const adapter = createBetterAuthAdapter({
+      auth,
+      apiKey: { resolveSession },
+      onSession,
+    });
+
+    const headers = new Headers({ 'x-api-key': 'vul_secret123' });
+    const result = await adapter.getSession(headers);
+
+    expect(onSession).toHaveBeenCalledWith(
+      { id: 'api-session', user: { id: 'u1' } },
+      headers,
+    );
+    expect(result).toEqual({
+      id: 'api-session',
+      user: { id: 'u1' },
+      enriched: true,
+    });
+  });
+
+  it('apiKey: onSession can reject API key sessions', async () => {
+    const auth = createApiKeyAuth();
+    const resolveSession = vi
+      .fn()
+      .mockResolvedValue({ id: 'api-session', user: { id: 'u1' } });
+    const onSession = vi.fn().mockResolvedValue(null);
+    const adapter = createBetterAuthAdapter({
+      auth,
+      apiKey: { resolveSession },
+      onSession,
+    });
+
+    const headers = new Headers({ 'x-api-key': 'vul_secret123' });
+    const result = await adapter.getSession(headers);
+
+    expect(result).toBeNull();
+  });
+
+  it('apiKey: throws when verifyApiKey method is missing from auth', async () => {
+    const auth = {
+      api: {
+        getSession: vi.fn().mockResolvedValue(null),
+      },
+      handler: vi.fn(),
+    };
+    const resolveSession = vi.fn();
+    const adapter = createBetterAuthAdapter({
+      auth,
+      apiKey: { resolveSession },
+    });
+
+    const headers = new Headers({ 'x-api-key': 'vul_secret123' });
+    await expect(adapter.getSession(headers)).rejects.toThrow(
+      'auth.api.verifyApiKey is required',
+    );
+  });
+
+  it('apiKey: uses custom headerName', async () => {
+    const auth = createApiKeyAuth();
+    const resolveSession = vi
+      .fn()
+      .mockResolvedValue({ id: 'api-session', user: { id: 'u1' } });
+    const adapter = createBetterAuthAdapter({
+      auth,
+      apiKey: { headerName: 'authorization', resolveSession },
+    });
+
+    const headers = new Headers({ authorization: 'vul_secret123' });
+    const result = await adapter.getSession(headers);
+
+    expect(result).toEqual({ id: 'api-session', user: { id: 'u1' } });
+    expect(auth.api.verifyApiKey).toHaveBeenCalledWith({
+      key: 'vul_secret123',
+    });
   });
 });
 
