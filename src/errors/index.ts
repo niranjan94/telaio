@@ -7,6 +7,7 @@ export enum ErrorCode {
   FORBIDDEN = 'FORBIDDEN',
   NOT_FOUND = 'NOT_FOUND',
   PAYLOAD_TOO_LARGE = 'PAYLOAD_TOO_LARGE',
+  TOO_MANY_REQUESTS = 'TOO_MANY_REQUESTS',
 }
 
 /** Base error class for all request-level errors with HTTP status codes. */
@@ -71,5 +72,13 @@ export class PayloadTooLargeError extends RequestError {
   constructor(message: string = 'Payload too large') {
     super(ErrorCode.PAYLOAD_TOO_LARGE, message);
     this.statusCode = 413;
+  }
+}
+
+/** 429 Too Many Requests — rate limit exceeded. */
+export class TooManyRequestsError extends RequestError {
+  constructor(message: string = 'Too many requests') {
+    super(ErrorCode.TOO_MANY_REQUESTS, message);
+    this.statusCode = 429;
   }
 }

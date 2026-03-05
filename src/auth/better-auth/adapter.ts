@@ -1,6 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import { Type } from 'typebox';
-import { ForbiddenError } from '../../errors/index.js';
+import { ForbiddenError, TooManyRequestsError } from '../../errors/index.js';
 import { AutoRef, GenericErrorResponseSchema } from '../../schema/index.js';
 import type { AuthAdapter } from '../adapter.js';
 
@@ -227,9 +227,18 @@ async function resolveFromApiKey<TSession>(
 
   const result: {
     valid: boolean;
+    error?: { code?: string; message?: string } | null;
     key: VerifiedApiKey | null;
   } = await auth.api.verifyApiKey({ body: { key } });
-  if (!result.valid || !result.key) return null;
+
+  if (!result.valid || !result.key) {
+    if (result.error?.code === 'RATE_LIMITED') {
+      throw new TooManyRequestsError(
+        result.error.message ?? 'API key rate limit exceeded',
+      );
+    }
+    return null;
+  }
 
   const session = await apiKeyConfig.resolveSession(result.key);
   if (!session) return null;

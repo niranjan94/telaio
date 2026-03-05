@@ -1,6 +1,6 @@
 import type { FastifyRequest } from 'fastify';
 import { describe, expect, it, vi } from 'vitest';
-import { ForbiddenError } from '../../../errors/index.js';
+import { ForbiddenError, TooManyRequestsError } from '../../../errors/index.js';
 import { createBetterAuthAdapter } from '../adapter.js';
 import {
   orgSchemaMap,
@@ -1152,6 +1152,28 @@ describe('createBetterAuthAdapter', () => {
       const result = await adapter.getSession(headers);
 
       expect(result).toBeNull();
+    });
+
+    it('throws TooManyRequestsError when rate-limited', async () => {
+      const auth = createApiKeyAuth(null, {
+        valid: false,
+        error: { message: 'Rate limit exceeded', code: 'RATE_LIMITED' },
+        key: null,
+      });
+      const resolveSession = vi.fn();
+      const adapter = createBetterAuthAdapter({
+        auth,
+        apiKey: { resolveSession },
+      });
+
+      const headers = new Headers({ 'x-api-key': 'vul_secret123' });
+      await expect(adapter.getSession(headers)).rejects.toThrow(
+        TooManyRequestsError,
+      );
+      await expect(adapter.getSession(headers)).rejects.toThrow(
+        'Rate limit exceeded',
+      );
+      expect(resolveSession).not.toHaveBeenCalled();
     });
 
     it('throws when verifyApiKey method is missing from auth', async () => {
