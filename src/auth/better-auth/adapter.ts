@@ -19,11 +19,8 @@ interface BetterAuthLike {
       id: string;
       role: string;
     } | null>;
-    verifyApiKey?(options: { key: string }): Promise<{
-      valid: boolean;
-      error: { message: string; code: string } | null;
-      key: VerifiedApiKey | null;
-    }>;
+    // biome-ignore lint/suspicious/noExplicitAny: must accept better-auth's StrictEndpoint overloaded callable
+    verifyApiKey?(options: any): Promise<any>;
   };
   handler(request: Request): Promise<Response>;
 }
@@ -228,7 +225,10 @@ async function resolveFromApiKey<TSession>(
     );
   }
 
-  const result = await auth.api.verifyApiKey({ key });
+  const result: {
+    valid: boolean;
+    key: VerifiedApiKey | null;
+  } = await auth.api.verifyApiKey({ body: { key } });
   if (!result.valid || !result.key) return null;
 
   const session = await apiKeyConfig.resolveSession(result.key);

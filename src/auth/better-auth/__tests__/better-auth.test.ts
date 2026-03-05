@@ -1043,7 +1043,7 @@ describe('createBetterAuthAdapter', () => {
 
       expect(result).toEqual({ id: 'api-session', user: { id: 'u1' } });
       expect(auth.api.verifyApiKey).toHaveBeenCalledWith({
-        key: 'vul_secret123',
+        body: { key: 'vul_secret123' },
       });
       expect(resolveSession).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'key-1', userId: 'u1' }),
@@ -1188,7 +1188,7 @@ describe('createBetterAuthAdapter', () => {
 
       expect(result).toEqual({ id: 'api-session', user: { id: 'u1' } });
       expect(auth.api.verifyApiKey).toHaveBeenCalledWith({
-        key: 'vul_secret123',
+        body: { key: 'vul_secret123' },
       });
     });
   }); // end API key session resolution
