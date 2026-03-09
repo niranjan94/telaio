@@ -90,12 +90,13 @@ describe('registerGuardAdapter + withAuth', () => {
     const result = withAuth({ scopes: ['test'] });
     expect(result.schema).toBeDefined();
     expect(result.preValidation).toBeDefined();
-    // Generic guard includes 400 response schema
+    // Generic guard includes 400, 401, 403, 422 response schemas
     const response = (result.schema as Record<string, Record<string, unknown>>)
       .response;
     expect(response[400]).toBeDefined();
     expect(response[401]).toBeDefined();
     expect(response[403]).toBeDefined();
+    expect(response[422]).toBeDefined();
   });
 
   it('uses adapter guard when validateScope is present', () => {
@@ -113,6 +114,11 @@ describe('registerGuardAdapter + withAuth', () => {
     // Adapter guard includes security from adapter
     const schema = result.schema as Record<string, unknown>;
     expect(schema.security).toEqual([{ cookieAuth: [] }]);
+    // Adapter guard includes 422 response schema
+    const response = (schema.response as Record<string, unknown>) ?? {};
+    expect(response[401]).toBeDefined();
+    expect(response[403]).toBeDefined();
+    expect(response[422]).toBeDefined();
   });
 
   it('adapter guard throws UnauthorizedError for missing session', async () => {

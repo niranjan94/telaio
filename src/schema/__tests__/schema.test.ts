@@ -10,12 +10,15 @@ import {
   Nullable,
   Paginated,
   PaginationMetaSchema,
+  PayloadTooLargeResponseSchema,
   PlainEnum,
   registerSchemas,
   SortPaginationParamsSchema,
   Timestamp,
+  TooManyRequestsResponseSchema,
   TypeName,
   UnauthorizedResponseSchema,
+  ValidationErrorResponseSchema,
 } from '../index.js';
 
 describe('AutoRef', () => {
@@ -121,6 +124,9 @@ describe('Error response schemas', () => {
     expect(UnauthorizedResponseSchema.$id).toBe('UnauthorizedResponse');
     expect(ForbiddenResponseSchema.$id).toBe('ForbiddenResponse');
     expect(NotFoundResponseSchema.$id).toBe('NotFoundResponse');
+    expect(PayloadTooLargeResponseSchema.$id).toBe('PayloadTooLargeResponse');
+    expect(ValidationErrorResponseSchema.$id).toBe('ValidationErrorResponse');
+    expect(TooManyRequestsResponseSchema.$id).toBe('TooManyRequestsResponse');
   });
 
   it('all have status, code, and message properties', () => {
@@ -130,10 +136,25 @@ describe('Error response schemas', () => {
       UnauthorizedResponseSchema,
       ForbiddenResponseSchema,
       NotFoundResponseSchema,
+      PayloadTooLargeResponseSchema,
+      ValidationErrorResponseSchema,
+      TooManyRequestsResponseSchema,
     ]) {
       expect(schema.properties).toHaveProperty('status');
       expect(schema.properties).toHaveProperty('code');
       expect(schema.properties).toHaveProperty('message');
     }
+  });
+
+  it('ValidationErrorResponseSchema has validation array and optional validationContext', () => {
+    expect(ValidationErrorResponseSchema.properties).toHaveProperty(
+      'validation',
+    );
+    expect(ValidationErrorResponseSchema.properties).toHaveProperty(
+      'validationContext',
+    );
+    expect(ValidationErrorResponseSchema.properties.validation.type).toBe(
+      'array',
+    );
   });
 });
