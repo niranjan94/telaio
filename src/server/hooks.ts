@@ -6,9 +6,53 @@ import dayjs from 'dayjs';
 import type { FastifyError, FastifyInstance } from 'fastify';
 import type { Logger } from 'pino';
 import { ErrorCode, RequestError, UnauthorizedError } from '../errors/index.js';
+import {
+  AutoRef,
+  BadRequestErrorResponseSchema,
+  GenericErrorResponseSchema,
+  NotFoundResponseSchema,
+  PayloadTooLargeResponseSchema,
+  TooManyRequestsResponseSchema,
+  ValidationErrorResponseSchema,
+} from '../schema/index.js';
 
 /** Paths excluded from request completion logging. */
 const LOGGING_IGNORED_PATHS = ['/healthz', '/healthz?extended=true'];
+
+/** Default error response schemas injected into routes that declare response schemas. */
+const DEFAULT_ERROR_SCHEMAS: Record<number, unknown> = {
+  400: AutoRef(BadRequestErrorResponseSchema),
+  404: AutoRef(NotFoundResponseSchema),
+  413: AutoRef(PayloadTooLargeResponseSchema),
+  422: AutoRef(ValidationErrorResponseSchema),
+  429: AutoRef(TooManyRequestsResponseSchema),
+  500: AutoRef(GenericErrorResponseSchema),
+};
+
+/**
+ * Registers an onRoute hook that injects default error response schemas
+ * into routes that already declare at least one response schema.
+ * Routes with no response schemas (e.g. /healthz) are left untouched.
+ */
+export function registerDefaultErrorSchemas(server: FastifyInstance) {
+  server.addHook('onRoute', (routeOptions) => {
+    const response = routeOptions.schema?.response as
+      | Record<string, unknown>
+      | undefined;
+
+    // Skip routes with no response schemas declared
+    if (!response || Object.keys(response).length === 0) {
+      return;
+    }
+
+    // Inject defaults for missing error codes
+    for (const [code, schema] of Object.entries(DEFAULT_ERROR_SCHEMAS)) {
+      if (!(code in response)) {
+        response[code] = schema;
+      }
+    }
+  });
+}
 
 /**
  * Registers request lifecycle hooks, decorators, error handler, and health endpoint.
@@ -82,6 +126,10 @@ export async function registerHooks(
 
   server.setErrorHandler(
     (error: FastifyError | RequestError | Error, request, reply) => {
+      // Safety net: use JSON.stringify so error responses never fail
+      // serialization even if a route lacks a schema for this status code.
+      reply.serializer(JSON.stringify);
+
       if (error instanceof RequestError) {
         reply.status(error.statusCode).send(error.toJSON());
         return;

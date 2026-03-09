@@ -154,6 +154,38 @@ export const NotFoundResponseSchema = errorResponseSchema(
   { code: 'NOT_FOUND', message: 'Resource not found' },
 );
 
+/** Payload too large error response schema (413). */
+export const PayloadTooLargeResponseSchema = errorResponseSchema(
+  'PayloadTooLargeResponse',
+  'Request body exceeds allowed size.',
+  { code: 'PAYLOAD_TOO_LARGE', message: 'Payload too large' },
+);
+
+/** Validation error response schema (422). */
+export const ValidationErrorResponseSchema = Type.Object(
+  {
+    status: Type.String({ default: 'error' }),
+    code: Type.String({ default: 'UNPROCESSABLE_ENTITY' }),
+    message: Type.String({ default: 'Validation failed' }),
+    validation: Type.Array(
+      Type.Object({
+        message: Type.String(),
+        instancePath: Type.Optional(Type.String()),
+        keyword: Type.Optional(Type.String()),
+      }),
+    ),
+    validationContext: Type.Optional(Type.String()),
+  },
+  { $id: 'ValidationErrorResponse', description: 'Validation failed.' },
+);
+
+/** Too many requests error response schema (429). */
+export const TooManyRequestsResponseSchema = errorResponseSchema(
+  'TooManyRequestsResponse',
+  'Rate limit exceeded.',
+  { code: 'TOO_MANY_REQUESTS', message: 'Too many requests' },
+);
+
 export type GenericErrorResponse = Static<typeof GenericErrorResponseSchema>;
 export type BadRequestErrorResponse = Static<
   typeof BadRequestErrorResponseSchema
@@ -161,6 +193,15 @@ export type BadRequestErrorResponse = Static<
 export type UnauthorizedResponse = Static<typeof UnauthorizedResponseSchema>;
 export type ForbiddenResponse = Static<typeof ForbiddenResponseSchema>;
 export type NotFoundResponse = Static<typeof NotFoundResponseSchema>;
+export type PayloadTooLargeResponse = Static<
+  typeof PayloadTooLargeResponseSchema
+>;
+export type ValidationErrorResponse = Static<
+  typeof ValidationErrorResponseSchema
+>;
+export type TooManyRequestsResponse = Static<
+  typeof TooManyRequestsResponseSchema
+>;
 
 /**
  * Auto-registers all TypeBox schemas from a directory into a Fastify instance.
@@ -220,6 +261,9 @@ export async function registerBuiltinSchemas(fastify: FastifyInstance) {
     UnauthorizedResponseSchema,
     ForbiddenResponseSchema,
     NotFoundResponseSchema,
+    PayloadTooLargeResponseSchema,
+    ValidationErrorResponseSchema,
+    TooManyRequestsResponseSchema,
   ];
 
   for (const schema of builtins) {

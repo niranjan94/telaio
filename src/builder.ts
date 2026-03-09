@@ -20,7 +20,7 @@ import {
   type QueueRegistry,
 } from './queue/producer.js';
 import { registerBuiltinSchemas, registerSchemas } from './schema/index.js';
-import { registerHooks } from './server/hooks.js';
+import { registerDefaultErrorSchemas, registerHooks } from './server/hooks.js';
 import {
   type PluginOptions,
   registerAutoload,
@@ -328,6 +328,9 @@ export class AppBuilder<
 
     // 3. Register built-in schemas
     await registerBuiltinSchemas(app);
+
+    // 3b. Register default error schema injection hook (before routes load)
+    registerDefaultErrorSchemas(app);
 
     // 4. Register user schemas from directory (defaults to src/schemas)
     if (this._schemasDir !== false) {

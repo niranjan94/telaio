@@ -5,6 +5,7 @@ import {
   BadRequestErrorResponseSchema,
   ForbiddenResponseSchema,
   UnauthorizedResponseSchema,
+  ValidationErrorResponseSchema,
 } from '../schema/index.js';
 import type { AuthAdapter, GuardRole, GuardScope } from './adapter.js';
 
@@ -117,6 +118,7 @@ function buildAdapterGuard(
   const responseSchemas: Record<string, unknown> = {
     401: AutoRef(UnauthorizedResponseSchema),
     403: AutoRef(ForbiddenResponseSchema),
+    422: AutoRef(ValidationErrorResponseSchema),
   };
 
   // Add adapter-provided response schemas
@@ -157,6 +159,7 @@ function buildGenericGuard(options?: WithAuthOptions): Partial<RouteOptions> {
     400: AutoRef(BadRequestErrorResponseSchema),
     401: AutoRef(UnauthorizedResponseSchema),
     403: AutoRef(ForbiddenResponseSchema),
+    422: AutoRef(ValidationErrorResponseSchema),
     ...((userSchema as Record<string, unknown>).response as
       | Record<string, unknown>
       | undefined),
