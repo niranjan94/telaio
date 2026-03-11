@@ -42,6 +42,16 @@ describe('loadConfig', () => {
       source: {},
     });
     expect(config.DATABASE_URL).toBe('postgresql://localhost/app');
+    expect(config.DATABASE_CAMEL_CASE).toBe(true);
+  });
+
+  it('parses DATABASE_CAMEL_CASE as boolean from env string', () => {
+    const config = loadConfig({
+      modules: { database: true },
+      skipEnvLoad: true,
+      source: { DATABASE_CAMEL_CASE: 'false' },
+    });
+    expect(config.DATABASE_CAMEL_CASE).toBe(false);
   });
 
   it('includes cache config when cache flag is set', () => {

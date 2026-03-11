@@ -44,4 +44,36 @@ describe('createDatabase', () => {
     expect(typeof db.destroy).toBe('function');
     pool.end();
   });
+
+  it('includes CamelCasePlugin by default', async () => {
+    const pool = await createPool(
+      { connectionString: 'postgresql://localhost:5432/test' },
+      logger,
+    );
+    const db = await createDatabase(pool);
+    // biome-ignore lint/suspicious/noExplicitAny: accessing internal plugins for test assertion
+    const plugins = (db as any).getExecutor().plugins;
+    const hasCamelCase = plugins.some(
+      // biome-ignore lint/suspicious/noExplicitAny: plugin constructor name check
+      (p: any) => p.constructor.name === 'CamelCasePlugin',
+    );
+    expect(hasCamelCase).toBe(true);
+    pool.end();
+  });
+
+  it('omits CamelCasePlugin when camelCase is false', async () => {
+    const pool = await createPool(
+      { connectionString: 'postgresql://localhost:5432/test' },
+      logger,
+    );
+    const db = await createDatabase(pool, { camelCase: false });
+    // biome-ignore lint/suspicious/noExplicitAny: accessing internal plugins for test assertion
+    const plugins = (db as any).getExecutor().plugins;
+    const hasCamelCase = plugins.some(
+      // biome-ignore lint/suspicious/noExplicitAny: plugin constructor name check
+      (p: any) => p.constructor.name === 'CamelCasePlugin',
+    );
+    expect(hasCamelCase).toBe(false);
+    pool.end();
+  });
 });
