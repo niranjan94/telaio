@@ -12,6 +12,11 @@ export interface PoolOptions {
 
 /** Options for creating a Kysely database instance. */
 export interface DatabaseOptions {
+  /**
+   * Whether to enable CamelCasePlugin for snake_case to camelCase mapping.
+   * Defaults to `true` when omitted.
+   */
+  camelCase?: boolean;
   /** Additional Kysely plugins to register alongside CamelCasePlugin. */
   // biome-ignore lint/suspicious/noExplicitAny: Kysely plugin types vary
   plugins?: any[];
@@ -142,7 +147,8 @@ export async function registerCitextParser(
 
 /**
  * Creates a Kysely database instance wrapping an existing pool.
- * Automatically applies CamelCasePlugin for snake_case to camelCase mapping.
+ * Applies CamelCasePlugin by default for snake_case to camelCase mapping.
+ * Pass `{ camelCase: false }` to disable it.
  */
 export async function createDatabase<DB>(
   pool: import('pg').Pool,
@@ -160,7 +166,10 @@ export async function createDatabase<DB>(
 
   const dialect = new kysely.PostgresDialect({ pool });
 
-  const plugins = [new kysely.CamelCasePlugin(), ...(options?.plugins ?? [])];
+  const plugins = [
+    ...(options?.camelCase !== false ? [new kysely.CamelCasePlugin()] : []),
+    ...(options?.plugins ?? []),
+  ];
 
   return new kysely.Kysely({ dialect, plugins });
 }
