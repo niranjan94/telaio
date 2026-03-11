@@ -269,7 +269,14 @@ export class AppBuilder<
         ));
 
       // Resolve db: use provided or create from pool
-      db = dbOpts.db ?? (await createDatabase(pool, dbOpts.databaseOptions));
+      // Code-level camelCase takes precedence over config env var
+      const camelCase =
+        dbOpts.databaseOptions?.camelCase ??
+        ((config as Record<string, unknown>).DATABASE_CAMEL_CASE as
+          | boolean
+          | undefined);
+      const resolvedDbOptions = { ...dbOpts.databaseOptions, camelCase };
+      db = dbOpts.db ?? (await createDatabase(pool, resolvedDbOptions));
 
       // Register CITEXT parser unless explicitly disabled
       if (dbOpts.citext !== false) {
