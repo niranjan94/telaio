@@ -43,6 +43,7 @@ export const serverConfigSchema = z.object({
 export const databaseConfigSchema = z.object({
   DATABASE_URL: z.url().default('postgresql://localhost/app'),
   DATABASE_SSL: envBoolean.optional(),
+  DATABASE_CAMEL_CASE: envBoolean.default(true),
 });
 
 /** Redis cache config. */
