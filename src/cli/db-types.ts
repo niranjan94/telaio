@@ -11,14 +11,15 @@ export function registerDbTypesCommand(program: Command): void {
       'Generate TypeScript types from the database schema using kysely-codegen',
     )
     .option('-o, --out-file <path>', 'Output file path', 'src/db/types.ts')
-    .option('--camel-case', 'Use camelCase for column names', true)
+    .option('--camel-case', 'Use camelCase for column names')
+    .option('--no-camel-case', 'Disable camelCase for column names')
     .option('--runtime-enums', 'Generate runtime enums', true)
     .option('--singularize', 'Singularize table names', true)
     .option('--config-file <path>', 'kysely-codegen config file path')
     .action(
       async (options: {
         outFile: string;
-        camelCase: boolean;
+        camelCase: boolean | undefined;
         runtimeEnums: boolean;
         singularize: boolean;
         configFile?: string;
@@ -34,7 +35,12 @@ export function registerDbTypesCommand(program: Command): void {
 
         args.push('--out-file', options.outFile);
 
-        if (options.camelCase) {
+        // CLI flag takes precedence, then config, then default true
+        const camelCase =
+          options.camelCase ??
+          (appConfig.DATABASE_CAMEL_CASE as boolean | undefined) ??
+          true;
+        if (camelCase) {
           args.push('--camel-case');
         }
         if (options.runtimeEnums) {
