@@ -168,7 +168,9 @@ async function getDb(appConfig: Record<string, unknown>) {
     );
   }
 
+  const camelCase = appConfig.DATABASE_CAMEL_CASE as boolean | undefined;
+
   const { createPool, createDatabase } = await import('../db/client.js');
   const pool = await createPool({ connectionString });
-  return createDatabase(pool);
+  return createDatabase(pool, { camelCase });
 }
