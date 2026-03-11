@@ -225,7 +225,7 @@ describe('error handling (E2E)', () => {
           200: Type.Object({ ok: Type.Boolean(), name: Type.String() }),
         },
       },
-      handler: async (req) => ({
+      handler: async (req: any) => ({
         ok: true,
         // biome-ignore lint/suspicious/noExplicitAny: test helper
         name: (req.body as any).name,

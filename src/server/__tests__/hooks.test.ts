@@ -66,7 +66,7 @@ describe('registerDefaultErrorSchemas', () => {
     // 400 should remain the custom one
     expect(routeOptions.schema.response[400]).toBe(custom400);
     // Others should be injected
-    expect(routeOptions.schema.response[404]).toBeDefined();
+    expect((routeOptions.schema.response as any)[404]).toBeDefined();
   });
 
   it('skips routes with no response schemas', () => {
