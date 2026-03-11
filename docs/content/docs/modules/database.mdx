@@ -49,7 +49,27 @@ const db = await createDatabase<DB>(pool);
 
 `createDatabase` wraps the pool in a Kysely instance using `PostgresDialect`. The `DB` generic is the database interface you generate with [kysely-codegen](https://github.com/RobinBlomberg/kysely-codegen) or write by hand.
 
-**CamelCasePlugin is always enabled.** Database columns are `snake_case`; Kysely exposes them as `camelCase` in TypeScript. You do not need to configure this -- it is on by default and cannot be turned off without bypassing the factory.
+**CamelCasePlugin is enabled by default.** Database columns are `snake_case`; Kysely exposes them as `camelCase` in TypeScript.
+
+### Disabling CamelCasePlugin
+
+If your database columns are already camelCase (or you want raw column names), disable the plugin:
+
+```typescript
+// Via code
+const db = await createDatabase<DB>(pool, { camelCase: false });
+
+// Via builder (reads DATABASE_CAMEL_CASE from config)
+const app = await createApp({ config })
+  .withDatabase({ databaseOptions: { camelCase: false } })
+  .build();
+```
+
+Or set the `DATABASE_CAMEL_CASE` environment variable to `false`. The env var applies globally to the builder, CLI migrate commands, and `db:types`. Code-level `camelCase` in `databaseOptions` always takes precedence over the env var.
+
+<Callout type="info">
+If you use [better-auth](/docs/modules/better-auth) with `DATABASE_CAMEL_CASE=false`, make sure you also set `useSnakeCaseSchema: false` (or omit it) in your better-auth config, since better-auth manages its own column naming independently.
+</Callout>
 
 ### Additional plugins
 
@@ -62,7 +82,7 @@ const db = await createDatabase<DB>(pool, {
 });
 ```
 
-Any plugins you pass are appended after `CamelCasePlugin`.
+When CamelCasePlugin is enabled (the default), any plugins you pass are appended after it.
 
 <Callout type="warn">
 `db.destroy()` also ends the underlying pg Pool via `PostgresDialect`. Never call both `db.destroy()` and `pool.end()` -- the second call will throw "Called end on pool more than once".
