@@ -13,13 +13,13 @@ pnpx telaio dev
 
 ## Peer dependencies
 
-`telaio dev` requires two peer dependencies:
+`telaio dev` requires a peer dependency for native file watching:
 
 ```bash
-pnpm add -D concurrently @parcel/watcher
+pnpm add -D @parcel/watcher
 ```
 
-`concurrently` manages multiple child processes with labeled output. `@parcel/watcher` provides native filesystem watching with low overhead.
+`@parcel/watcher` provides native filesystem watching with low overhead.
 
 ## Configuration
 
@@ -78,11 +78,19 @@ Paths in `watch.include` are added to this set. Paths in `watch.ignore` are excl
 
 ## Process lifecycle
 
-On startup, all configured processes are launched in parallel. When a watched file changes:
+On startup, all configured processes are launched in parallel, each in its own process group with a watchdog monitor. When a watched file changes:
 
-1. All child processes receive `SIGTERM`
-2. After a short drain period, they are killed if still running
+1. All process groups receive `SIGTERM`
+2. After a 5-second grace period, surviving processes are force-killed via `SIGKILL`
 3. All processes restart with the same command
+
+If another file change occurs during a restart cycle, it is queued and triggers a follow-up restart once the current cycle completes.
+
+### Orphan prevention
+
+Each child process is wrapped in a watchdog that monitors the parent `telaio dev` process. If the parent dies unexpectedly, including via `kill -9`, the watchdog automatically terminates the entire process group within about 500ms. A PID file (`.telaio-dev.pid`) provides additional cleanup on the next startup as a safety net.
+
+`.telaio-dev.pid` is not ignored automatically by Git. Add it to your app's `.gitignore` if you run `telaio dev` from a project root.
 
 The main Telaio server is always included as one of the managed processes. Additional entries in `processes` are extra workers, queue consumers, or any other long-running Node process your app needs.
 
