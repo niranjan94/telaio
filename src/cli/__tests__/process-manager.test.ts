@@ -167,7 +167,10 @@ describe('ProcessManager', () => {
       let childPid = 0;
       for (let attempt = 0; attempt < 20; attempt += 1) {
         if (fs.existsSync(childPidFile)) {
-          childPid = Number.parseInt(fs.readFileSync(childPidFile, 'utf-8'), 10);
+          childPid = Number.parseInt(
+            fs.readFileSync(childPidFile, 'utf-8'),
+            10,
+          );
           break;
         }
         await new Promise((resolve) => setTimeout(resolve, 100));
