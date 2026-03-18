@@ -161,7 +161,7 @@ export class ProcessManager {
       `while kill -0 ${process.pid} 2>/dev/null; do`,
       `  sleep ${WATCHDOG_POLL_SECONDS}`,
       'done',
-      'kill -TERM -- -$$ 2>/dev/null',
+      'kill -TERM 0 2>/dev/null',
       'wait',
     ].join('\n');
 

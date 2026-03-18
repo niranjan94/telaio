@@ -124,7 +124,7 @@ describe('ProcessManager', () => {
         '  "while kill -0 " + process.pid + " 2>/dev/null; do",',
         '  "  sleep 0.5",',
         '  "done",',
-        '  "kill -TERM -- -$$ 2>/dev/null",',
+        '  "kill -TERM 0 2>/dev/null",',
         '  "wait",',
         '].join("\\n");',
         'const child = spawn("/bin/sh", ["-c", wrapper], {',
@@ -180,6 +180,17 @@ describe('ProcessManager', () => {
       const isAlive = (pid: number) => {
         try {
           process.kill(pid, 0);
+
+          if (process.platform === 'linux') {
+            try {
+              const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf-8');
+              const fields = stat.split(' ');
+              return fields[2] !== 'Z';
+            } catch {
+              return false;
+            }
+          }
+
           return true;
         } catch {
           return false;
