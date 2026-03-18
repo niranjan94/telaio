@@ -1,8 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { Writable } from 'node:stream';
 import type { Command } from 'commander';
 import { discoverDevProcesses } from './discover.js';
+import { ProcessManager } from './process-manager.js';
 import { loadCliMetadata } from './resolve-config.js';
 
 /** A process definition for the dev runner. */
@@ -24,9 +24,6 @@ const DEFAULT_DEBOUNCE_MS = 300;
 
 /** Default log file path for tee output. */
 const DEFAULT_OUTPUT = 'output.log';
-
-/** Grace period (ms) before SIGKILL after SIGTERM. */
-const KILL_TIMEOUT_MS = 5_000;
 
 /** Regex to strip ANSI escape sequences from a string. */
 // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional -- matching ANSI escape codes
@@ -72,22 +69,6 @@ export function matchesIncludePatterns(
 }
 
 /**
- * Lazily imports the concurrently package.
- * Throws a descriptive error if not installed.
- */
-async function importConcurrently() {
-  try {
-    const mod = await import('concurrently');
-    return (mod.default ??
-      mod.concurrently) as typeof import('concurrently').concurrently;
-  } catch {
-    throw new Error(
-      "telaio: dev command requires 'concurrently'. Install it: pnpm add -D concurrently",
-    );
-  }
-}
-
-/**
  * Lazily imports @parcel/watcher.
  * Throws a descriptive error if not installed.
  */
@@ -103,26 +84,19 @@ async function importWatcher() {
 }
 
 /**
- * Creates a Writable stream that tees output to both stdout and a file.
- * Stdout gets full ANSI color; the file gets stripped output.
+ * Creates a file logger for stripped process output.
  */
-function createTeeStream(outputPath: string): {
-  stream: Writable;
+function createLogFile(outputPath: string): {
+  write: (line: string) => void;
   close: () => void;
 } {
   const fileStream = fs.createWriteStream(outputPath);
 
-  const stream = new Writable({
-    write(chunk, _encoding, callback) {
-      process.stdout.write(chunk);
-      fileStream.write(stripAnsi(chunk.toString()), callback);
-    },
-  });
-
   return {
-    stream,
+    write: (line: string) => {
+      fileStream.write(`${line}\n`);
+    },
     close: () => {
-      stream.end();
       fileStream.end();
     },
   };
@@ -138,7 +112,7 @@ function mergePaths(defaults: string[], additional?: string[]): string[] {
 
 /**
  * Orchestrates the dev environment: auto-discovers processes,
- * spawns them via concurrently, watches files, and restarts on changes.
+ * spawns them via the process manager, watches files, and restarts on changes.
  */
 async function runDev(options: {
   add: string[];
@@ -179,7 +153,6 @@ async function runDev(options: {
     process.exit(1);
   }
 
-  const concurrently = await importConcurrently();
   const watcher = await importWatcher();
 
   // Merge watch config: defaults + additive user config
@@ -198,65 +171,36 @@ async function runDev(options: {
     ? undefined
     : (options.output ?? devConfig?.output ?? DEFAULT_OUTPUT);
 
-  // Set up output tee-ing (ANSI preserved on stdout, stripped in file)
-  const tee = outputPath ? createTeeStream(outputPath) : null;
-
-  // Build concurrently command inputs
-  const commands = processes.map((p) => ({
-    command: p.command,
-    name: p.name,
-    prefixColor: p.prefixColor,
-    env: { FORCE_COLOR: '1' },
-  }));
-
-  const concurrentlyOptions: Record<string, unknown> = {
-    prefix: 'name',
-    padPrefix: true,
+  const logFile = outputPath ? createLogFile(outputPath) : null;
+  const manager = new ProcessManager({
+    processes,
     cwd,
-    ...(tee ? { outputStream: tee.stream } : {}),
-  };
+    onOutput: (line) => {
+      process.stdout.write(`${line}\n`);
+      logFile?.write(stripAnsi(line));
+    },
+  });
 
-  let currentResult: {
-    commands: { kill: (signal: string) => void }[];
-    result: Promise<unknown>;
-  } | null = null;
+  manager.cleanupStale();
+
   let restarting = false;
+  let restartPending = false;
+  let shuttingDown = false;
 
-  /** Spawns all processes via concurrently. */
-  const startAll = () => {
-    currentResult = concurrently(commands, concurrentlyOptions);
-    currentResult.result.catch(() => {
-      // Process failures are expected during restart cycles
-    });
-  };
-
-  /** Kills all running processes and waits for them to exit. */
-  const stopAll = async () => {
-    if (!currentResult) return;
-    const result = currentResult;
-    currentResult = null;
-
-    for (const cmd of result.commands) {
-      try {
-        cmd.kill('SIGTERM');
-      } catch {
-        // Process may already be dead
-      }
+  const restart = async () => {
+    if (restarting) {
+      restartPending = true;
+      return;
     }
 
-    // Wait for graceful exit or timeout
-    await Promise.race([
-      result.result.catch(() => {}),
-      new Promise((resolve) => setTimeout(resolve, KILL_TIMEOUT_MS)),
-    ]);
+    restarting = true;
+    await manager.stopAll();
+    manager.startAll();
+    restarting = false;
 
-    // Force-kill any stragglers
-    for (const cmd of result.commands) {
-      try {
-        cmd.kill('SIGKILL');
-      } catch {
-        // Already dead
-      }
+    if (restartPending) {
+      restartPending = false;
+      await restart();
     }
   };
 
@@ -269,7 +213,7 @@ async function runDev(options: {
     console.log(`Output: ${outputPath}`);
   }
   console.log();
-  startAll();
+  manager.startAll();
 
   // Set up file watcher
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -289,9 +233,6 @@ async function runDev(options: {
       // Debounce rapid changes
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(async () => {
-        if (restarting) return;
-        restarting = true;
-
         const changedFiles = events
           .filter((e) => matchesIncludePatterns(e.path, includePatterns, cwd))
           .map((e) => path.relative(cwd, e.path));
@@ -299,9 +240,7 @@ async function runDev(options: {
         console.log(`\nFile change detected: ${changedFiles.join(', ')}`);
         console.log('Restarting...\n');
 
-        await stopAll();
-        startAll();
-        restarting = false;
+        await restart();
       }, debounceMs);
     },
     { ignore: ignorePatterns },
@@ -309,18 +248,22 @@ async function runDev(options: {
 
   /** Graceful shutdown: unsubscribe watcher, kill processes, exit. */
   const shutdown = async () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+
     console.log('\nShutting down...');
 
     if (debounceTimer) clearTimeout(debounceTimer);
     await subscription.unsubscribe();
-    await stopAll();
-    tee?.close();
+    await manager.stopAll();
+    logFile?.close();
 
     process.exit(0);
   };
 
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
+  process.on('SIGHUP', shutdown);
 }
 
 /** Registers the `telaio dev` CLI command. */
