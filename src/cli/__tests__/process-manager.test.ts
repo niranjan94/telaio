@@ -111,11 +111,16 @@ describe('ProcessManager', () => {
 
   describe('watchdog orphan cleanup', () => {
     it('kills child processes when parent PID dies', async () => {
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'telaio-watchdog-'));
+      const childPidFile = path.join(tmpDir, 'child.pid');
+
       const script = [
+        `const fs = require(${JSON.stringify('node:fs')});`,
         'const { spawn } = require("node:child_process");',
         'const wrapper = [',
         '  "sleep 60 &",',
         '  "CHILD=$!",',
+        `  "echo $CHILD > ${childPidFile}",`,
         '  "while kill -0 " + process.pid + " 2>/dev/null; do",',
         '  "  sleep 0.5",',
         '  "done",',
@@ -157,18 +162,33 @@ describe('ProcessManager', () => {
       });
 
       const wrapperPid = Number.parseInt(output, 10);
+      expect(wrapperPid).toBeGreaterThan(0);
+
+      let childPid = 0;
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        if (fs.existsSync(childPidFile)) {
+          childPid = Number.parseInt(fs.readFileSync(childPidFile, 'utf-8'), 10);
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      expect(childPid).toBeGreaterThan(0);
 
       await new Promise((resolve) => setTimeout(resolve, 2_000));
 
-      let alive = false;
-      try {
-        process.kill(-wrapperPid, 0);
-        alive = true;
-      } catch {
-        // Expected.
-      }
+      const isAlive = (pid: number) => {
+        try {
+          process.kill(pid, 0);
+          return true;
+        } catch {
+          return false;
+        }
+      };
 
-      expect(alive).toBe(false);
+      expect(isAlive(childPid)).toBe(false);
+
+      fs.rmSync(tmpDir, { recursive: true, force: true });
     }, 10_000);
   });
 
