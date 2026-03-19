@@ -44,8 +44,7 @@ let startPromise: Promise<any> | null = null;
 export async function getBoss(
   options: QueueClientOptions | Record<string, unknown>,
   logger?: Logger,
-  // biome-ignore lint/suspicious/noExplicitAny: return type is PgBoss from dynamic import
-): Promise<any> {
+): Promise<import('pg-boss').PgBoss> {
   if (bossInstance) return bossInstance;
 
   if (!startPromise) {

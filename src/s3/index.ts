@@ -10,6 +10,8 @@ export interface S3ClientConfig {
   secretAccessKey?: string;
 }
 
+type S3Client = import('@aws-sdk/client-s3').S3Client;
+
 /**
  * Creates an S3Client instance with optional explicit credentials.
  * When credentials are omitted, the SDK falls back to its default
@@ -19,9 +21,8 @@ export interface S3ClientConfig {
  */
 export async function createS3Client(
   clientConfig: S3ClientConfig,
-  // biome-ignore lint/suspicious/noExplicitAny: S3Client type from optional peer dep
-): Promise<any> {
-  let S3ClientClass: new (opts: Record<string, unknown>) => unknown;
+): Promise<S3Client> {
+  let S3ClientClass: new (opts: Record<string, unknown>) => S3Client;
   try {
     const mod = await import('@aws-sdk/client-s3');
     S3ClientClass = mod.S3Client;
