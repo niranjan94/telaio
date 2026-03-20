@@ -71,6 +71,16 @@ export function registerDbTypesCommand(program: Command): void {
             );
             process.exit(1);
           }
+
+          try {
+            execSync(`biome format --write ${options.outFile}`, {
+              stdio: 'inherit',
+            });
+          } catch {
+            console.warn(
+              'Could not run biome format on generated types. Is biome installed?',
+            );
+          }
         };
 
         if (options.watch) {
