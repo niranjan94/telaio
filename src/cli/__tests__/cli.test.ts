@@ -192,12 +192,6 @@ describe('readTelaioConfig', () => {
           output: 'generated',
           plugins: ['@hey-api/typescript'],
         },
-        consumer: {
-          registry: './dist/queues.js',
-        },
-        dev: {
-          processes: [{ name: 'api', command: 'tsx watch src/server.ts' }],
-        },
       },
     };
     await fs.writeFile(
@@ -210,8 +204,6 @@ describe('readTelaioConfig', () => {
     expect(config.app).toBe('./dist/app.js');
     expect(config.client?.output).toBe('generated');
     expect(config.client?.plugins).toEqual(['@hey-api/typescript']);
-    expect(config.consumer?.registry).toBe('./dist/queues.js');
-    expect(config.dev?.processes).toHaveLength(1);
   });
 
   it('returns empty config when telaio key is missing', async () => {

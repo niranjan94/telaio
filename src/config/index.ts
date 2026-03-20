@@ -36,35 +36,10 @@ export interface ClientConfig {
   enabled?: boolean;
 }
 
-/** Queue consumer config. */
-export interface ConsumerConfig {
-  /** Path to queue registry module. Default: 'src/queues/registry/index.ts'. */
-  registry?: string;
-}
-
-/** Dev command config -- additive to auto-discovered processes. */
-export interface DevConfig {
-  /** Additional processes to run alongside auto-discovered ones. */
-  processes?: { name: string; command: string; prefixColor?: string }[];
-  /** File watcher configuration. */
-  watch?: {
-    /** Additional paths to watch (merged with defaults: src, .env). */
-    include?: string[];
-    /** Additional paths to ignore (merged with defaults: node_modules, .git, dist). */
-    ignore?: string[];
-    /** Debounce interval in ms. Default: 300. */
-    debounceMs?: number;
-  };
-  /** Log file path for tee output. Default: 'output.log'. */
-  output?: string;
-}
-
 /** CLI metadata extracted from a defineConfig result (no env loading needed). */
 export interface CliMetadata {
   app?: string;
   client?: ClientConfig;
-  consumer?: ConsumerConfig;
-  dev?: DevConfig;
 }
 
 /** Options accepted by `defineConfig()` -- excludes runtime-only fields, adds CLI metadata. */
@@ -76,10 +51,6 @@ export type DefineConfigOptions<
   app?: string;
   /** Client generation config. */
   client?: ClientConfig;
-  /** Queue consumer config. */
-  consumer?: ConsumerConfig;
-  /** Dev command config. */
-  dev?: DevConfig;
 };
 
 /** Branded result returned by `defineConfig()`. */
@@ -125,8 +96,6 @@ export function extractCliMetadata(result: DefineConfigResult): CliMetadata {
   return {
     app: result.app,
     client: result.client,
-    consumer: result.consumer,
-    dev: result.dev,
   };
 }
 

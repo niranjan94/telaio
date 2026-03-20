@@ -118,12 +118,7 @@ export async function loadCliMetadata(cwd: string): Promise<CliMetadata> {
 function readTelaioConfigAsMetadata(cwd: string): CliMetadata {
   const pkgConfig = readTelaioConfig(cwd);
 
-  if (
-    pkgConfig.app ||
-    pkgConfig.client ||
-    pkgConfig.consumer ||
-    pkgConfig.dev
-  ) {
+  if (pkgConfig.app || pkgConfig.client) {
     console.warn(
       'telaio: the "telaio" key in package.json is deprecated. ' +
         'Move CLI config into defineConfig() in telaio.config.ts instead.',
@@ -133,14 +128,6 @@ function readTelaioConfigAsMetadata(cwd: string): CliMetadata {
   return {
     app: pkgConfig.app,
     client: pkgConfig.client,
-    consumer: pkgConfig.consumer,
-    dev: pkgConfig.dev
-      ? {
-          processes: pkgConfig.dev.processes,
-          watch: pkgConfig.dev.watch,
-          output: pkgConfig.dev.output,
-        }
-      : undefined,
   };
 }
 
