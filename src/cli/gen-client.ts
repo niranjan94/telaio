@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { Command } from 'commander';
 import type { TelaioApi } from '../types.js';
 import { discoverAppModule, loadCliMetadata } from './resolve-config.js';
@@ -57,8 +58,14 @@ export function registerGenClientCommand(program: Command): void {
     )
     .option('-o, --output <directory>', 'Output directory for generated client')
     .option('--plugins <plugins>', 'Comma-separated list of hey-api plugins')
+    .option('--watch', 'Watch src/ for changes and regenerate')
     .action(
-      async (options: { app?: string; output?: string; plugins?: string }) => {
+      async (options: {
+        app?: string;
+        output?: string;
+        plugins?: string;
+        watch?: boolean;
+      }) => {
         const cwd = process.cwd();
         const metadata = await loadCliMetadata(cwd);
 
@@ -97,37 +104,77 @@ export function registerGenClientCommand(program: Command): void {
           );
         }
 
-        // Resolve the TelaioApp via builder discovery
-        const app = await resolveTelaioApp(appPath, cwd);
-        await app.fastify.ready();
+        const generate = async () => {
+          // Resolve the TelaioApp via builder discovery
+          const app = await resolveTelaioApp(appPath, cwd);
+          await app.fastify.ready();
 
-        // Extract swagger spec (swagger() comes from @fastify/swagger augmentation)
-        const fastify = app.fastify as import('fastify').FastifyInstance & {
-          swagger?: () => Record<string, unknown>;
+          // Extract swagger spec (swagger() comes from @fastify/swagger augmentation)
+          const fastify = app.fastify as import('fastify').FastifyInstance & {
+            swagger?: () => Record<string, unknown>;
+          };
+          const swagger = fastify.swagger?.();
+          if (!swagger) {
+            throw new Error(
+              'telaio: gen-client requires @fastify/swagger to be registered. ' +
+                'Call .withSwagger() on the builder.',
+            );
+          }
+
+          console.log(`Generating client to ${output}...`);
+
+          await createClient({
+            input: swagger,
+            output: {
+              path: output,
+              importFileExtension: '.js',
+              postProcess: ['biome:lint', 'biome:format'],
+            },
+            plugins,
+          });
+
+          await app.fastify.close();
+          console.log('Client generated successfully.');
         };
-        const swagger = fastify.swagger?.();
-        if (!swagger) {
-          throw new Error(
-            'telaio: gen-client requires @fastify/swagger to be registered. ' +
-              'Call .withSwagger() on the builder.',
-          );
+
+        if (options.watch) {
+          let watcher: typeof import('@parcel/watcher');
+          try {
+            const mod = await import('@parcel/watcher');
+            watcher = mod.default ?? mod;
+          } catch {
+            throw new Error(
+              "telaio: --watch requires '@parcel/watcher'. Install it: pnpm add -D @parcel/watcher",
+            );
+          }
+
+          // Initial generation
+          await generate();
+
+          console.log('Watching src/ for changes...');
+          let debounce: ReturnType<typeof setTimeout> | null = null;
+
+          await watcher.subscribe(cwd, (_err, events) => {
+            if (!events?.length) return;
+            const relevant = events.some((e) => {
+              const rel = path.relative(cwd, e.path);
+              return rel.startsWith(`src${path.sep}`) || rel === 'src';
+            });
+            if (!relevant) return;
+
+            if (debounce) clearTimeout(debounce);
+            debounce = setTimeout(async () => {
+              console.log('Changes detected, regenerating client...');
+              await generate();
+            }, 300);
+          }, { ignore: ['node_modules', '.git', 'dist', 'client'] });
+
+          // Keep alive -- wait for signal
+          await new Promise(() => {});
+        } else {
+          await generate();
+          process.exit(0);
         }
-
-        console.log(`Generating client to ${output}...`);
-
-        await createClient({
-          input: swagger,
-          output: {
-            path: output,
-            importFileExtension: '.js',
-            postProcess: ['biome:lint', 'biome:format'],
-          },
-          plugins,
-        });
-
-        await app.fastify.close();
-        console.log('Client generated successfully.');
-        process.exit(0);
       },
     );
 }

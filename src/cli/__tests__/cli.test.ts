@@ -54,6 +54,22 @@ describe('CLI command registration', () => {
     expect(cmd).toBeDefined();
     expect(cmd?.description()).toBe('Run the sequential build pipeline');
   });
+
+  it('gen-client command has --watch option', () => {
+    const program = new Command();
+    registerGenClientCommand(program);
+    const cmd = program.commands.find((c) => c.name() === 'gen-client');
+    const watchOpt = cmd?.options.find((o) => o.long === '--watch');
+    expect(watchOpt).toBeDefined();
+  });
+
+  it('db:types command has --watch option', () => {
+    const program = new Command();
+    registerDbTypesCommand(program);
+    const cmd = program.commands.find((c) => c.name() === 'db:types');
+    const watchOpt = cmd?.options.find((o) => o.long === '--watch');
+    expect(watchOpt).toBeDefined();
+  });
 });
 
 describe('telaio init', () => {
