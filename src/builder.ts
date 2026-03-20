@@ -32,7 +32,7 @@ import type {
   DefaultFeatures,
   Features,
   StartOptions,
-  TelaioApp,
+  TelaioApi,
 } from './types.js';
 
 /** Options for withDatabase(). Supports three modes: pool+db, pool-only, or from-config. */
@@ -227,8 +227,8 @@ export class AppBuilder<
     return this;
   }
 
-  /** Build and return the configured TelaioApp. */
-  async build(): Promise<TelaioApp<F, TSession, TConfig>> {
+  /** Build and return the configured TelaioApi. */
+  async buildApi(): Promise<TelaioApi<F, TSession, TConfig>> {
     const logger = this._logger;
     const config = this._config;
 
@@ -359,10 +359,11 @@ export class AppBuilder<
       await registerHooks(app, {
         logger,
         tempFiles: this._tempFiles,
-        onStart: this._onStart.length > 0 ? this._onStart : undefined,
-        onStop: this._onStop.length > 0 ? this._onStop : undefined,
       });
     }
+
+    const onStartCallbacks = this._onStart;
+    const onStopCallbacks = this._onStop;
 
     // biome-ignore lint/suspicious/noExplicitAny: conditional properties based on features
     const telaioApp: any = {
@@ -371,6 +372,11 @@ export class AppBuilder<
       logger,
 
       async start(options?: StartOptions) {
+        // Run onStart callbacks before listening
+        for (const fn of onStartCallbacks) {
+          await fn();
+        }
+
         const port =
           options?.port ??
           ((config as Record<string, unknown>).API_LISTEN_PORT as
@@ -389,6 +395,11 @@ export class AppBuilder<
       },
 
       async stop() {
+        // Run onStop callbacks before resource teardown
+        for (const fn of onStopCallbacks) {
+          await fn();
+        }
+
         await app.close();
         if (queueProducer) {
           await stopBoss(logger);

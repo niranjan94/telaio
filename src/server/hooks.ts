@@ -63,11 +63,9 @@ export async function registerHooks(
   options: {
     logger: Logger;
     tempFiles?: boolean;
-    onStart?: Array<() => Promise<void>>;
-    onStop?: Array<() => Promise<void>>;
   },
 ) {
-  const { logger, onStart, onStop } = options;
+  const { logger } = options;
 
   server.decorateRequest('startTime', undefined);
   server.decorateRequest('maybeAuthSession', null);
@@ -220,17 +218,6 @@ export async function registerHooks(
     requestLogger.info('request completed');
     done();
   });
-
-  if (onStart) {
-    for (const fn of onStart) {
-      server.addHook('onReady', fn);
-    }
-  }
-  if (onStop) {
-    for (const fn of onStop) {
-      server.addHook('onClose', fn);
-    }
-  }
 
   server.get('/healthz', async () => {
     return { status: 'ok' };
