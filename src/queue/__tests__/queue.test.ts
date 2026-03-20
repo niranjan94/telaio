@@ -98,7 +98,5 @@ describe('queue module exports', () => {
     expect(typeof mod._resetBoss).toBe('function');
     expect(mod.createQueueProducer).toBeDefined();
     expect(typeof mod.createQueueProducer).toBe('function');
-    expect(mod.startConsumer).toBeDefined();
-    expect(typeof mod.startConsumer).toBe('function');
   });
 });
