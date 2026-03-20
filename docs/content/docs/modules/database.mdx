@@ -62,7 +62,7 @@ const db = await createDatabase<DB>(pool, { camelCase: false });
 // Via builder (reads DATABASE_CAMEL_CASE from config)
 const app = await createApp({ config })
   .withDatabase({ databaseOptions: { camelCase: false } })
-  .build();
+  .buildApi();
 ```
 
 Or set the `DATABASE_CAMEL_CASE` environment variable to `false`. The env var applies globally to the builder, CLI migrate commands, and `db:types`. Code-level `camelCase` in `databaseOptions` always takes precedence over the env var.
@@ -106,7 +106,7 @@ This requires the `postgres-array` peer dependency to be installed.
 ```typescript
 const app = await createApp({ config })
   .withDatabase()       // pool + db created from config
-  .build();
+  .buildApi();
 
 app.pool  // pg.Pool
 app.db    // Kysely<unknown> -- cast to Kysely<DB> as needed
@@ -117,7 +117,7 @@ You can pass pre-built instances to skip internal construction:
 ```typescript
 const app = await createApp({ config })
   .withDatabase({ pool, db })
-  .build();
+  .buildApi();
 ```
 
 ## Migrations

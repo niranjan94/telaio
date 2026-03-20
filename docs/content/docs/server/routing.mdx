@@ -12,7 +12,7 @@ Telaio does not invent a new routing API. Fastify route syntax is unchanged. Wha
 The `app.fastify` property exposes the full `FastifyInstance`. Everything Fastify supports -- plugins, decorators, hooks, route registration -- is available through it.
 
 ```typescript
-const app = await createApp({ config }).withDatabase().build();
+const app = await createApp({ config }).withDatabase().buildApi();
 
 // Register an additional plugin after build
 app.fastify.register(myPlugin);

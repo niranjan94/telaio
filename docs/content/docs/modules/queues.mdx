@@ -73,20 +73,33 @@ await queue.send('send-welcome-email', { userId: 'user_123' });
 
 ## Consumer process
 
-Consumers run in a separate long-lived process. Use `startConsumer` directly or run it via the `telaio consumer` CLI command.
+Consumers run in a separate long-lived process. Use `buildConsumer()` on the builder to create a lightweight queue worker that shares the same wiring as your API server:
 
 ```typescript
-// src/consumer.ts
-import { startConsumer } from 'telaio/queue';
+// src/app.ts -- shared builder
+import { loadConfig, createApp } from 'telaio';
 import { registry } from './queues/registry/index.js';
-import { loadConfig } from 'telaio/config';
 
 const config = loadConfig({ modules: { database: true } });
 
-await startConsumer(registry, { connection: config });
+export function getBuilder() {
+  return createApp({ config }).withDatabase().withQueues(registry);
+}
+
+// src/consumer.ts
+import { getBuilder } from './app.js';
+
+const consumer = await getBuilder().buildConsumer();
+await consumer.start();
 ```
 
-`startConsumer` connects to pg-boss, subscribes each key in the registry to its handler function, and blocks until the process receives `SIGINT` or `SIGTERM`. On shutdown it drains in-flight jobs before exiting.
+`buildConsumer()` creates a `TelaioConsumer` that connects to pg-boss, subscribes each key in the registry to its handler function, and blocks until the process receives `SIGINT` or `SIGTERM`. On shutdown it drains in-flight jobs before exiting.
+
+Run the consumer entry point directly:
+
+```bash
+node --import tsx/esm src/consumer.ts
+```
 
 ### Handler errors
 
@@ -111,7 +124,7 @@ import { registry } from './queues/registry/index.js';
 
 const app = await createApp({ config })
   .withQueues(registry)
-  .build();
+  .buildApi();
 
 app.queue  // QueueProducer<typeof registry>
 ```

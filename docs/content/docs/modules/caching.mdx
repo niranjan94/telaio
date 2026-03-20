@@ -101,7 +101,7 @@ const user = await cache.getRecord<User>('user:123');
 ```typescript
 const app = await createApp({ config })
   .withCache()               // options derived from config
-  .build();
+  .buildApi();
 
 app.cache  // Cache instance
 ```

@@ -131,7 +131,7 @@ async function registerAutoload(
 
 ## registerHooks(server, options)
 
-Registers Fastify lifecycle hooks: request timing, auth session decoration, temp file management, and `onReady`/`onClose` callbacks.
+Registers Fastify lifecycle hooks: request timing, auth session decoration, temp file management, and `onStart`/`onStop` callbacks.
 
 ```typescript
 import { registerHooks } from 'telaio/server';
@@ -139,10 +139,10 @@ import { registerHooks } from 'telaio/server';
 await registerHooks(server, {
   logger,
   tempFiles: true,
-  onReady: async () => {
+  onStart: async () => {
     logger.info('Server ready');
   },
-  onClose: async () => {
+  onStop: async () => {
     await pool.end();
   },
 });
@@ -156,8 +156,8 @@ async function registerHooks(
   options: {
     logger: Logger;
     tempFiles?: boolean;
-    onReady?: () => Promise<void>;
-    onClose?: () => Promise<void>;
+    onStart?: () => Promise<void>;
+    onStop?: () => Promise<void>;
   }
 ): Promise<void>
 ```
@@ -168,8 +168,8 @@ async function registerHooks(
 |-------|------|-------------|
 | `logger` | `Logger` | Pino logger instance |
 | `tempFiles` | `boolean` | Enable temp file management decorators on every request |
-| `onReady` | `() => Promise<void>` | Callback invoked when the server finishes startup |
-| `onClose` | `() => Promise<void>` | Callback invoked when the server begins shutdown |
+| `onStart` | `() => Promise<void>` | Callback invoked when the server finishes startup |
+| `onStop` | `() => Promise<void>` | Callback invoked when the server begins shutdown |
 
 ---
 

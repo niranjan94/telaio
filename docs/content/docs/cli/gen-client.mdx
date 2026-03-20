@@ -57,7 +57,7 @@ When `plugins` is not specified, the following are used:
 
 ## Ephemeral mode
 
-`gen-client` imports your `app` module and calls `.asEphemeral()` before `.build()`. This skips all `onReady` and `onClose` lifecycle hooks, meaning the server never binds to a port and background processes never start. The app is assembled purely to extract the OpenAPI spec.
+`gen-client` imports your `app` module and calls `.asEphemeral()` before `.buildApi()`. This skips all `onStart` and `onStop` lifecycle hooks, meaning the server never binds to a port and background processes never start. The app is assembled purely to extract the OpenAPI spec.
 
 Your `app` module should export the builder result, not a started server:
 
@@ -72,7 +72,7 @@ export const app = await createApp({ config })
   .withSwagger({ info: { title: 'My API', version: '1.0.0' } })
   .withApiDocs()
   .withPlugins({ autoload: { dir: 'src/routes' } })
-  .build();
+  .buildApi();
 ```
 
 ## Output
@@ -100,6 +100,14 @@ client.setConfig({ baseUrl: 'https://api.example.com' });
 const users = await getUsers({ query: { limit: 20, skip: 0 } });
 const user = await getUserById({ path: { id: '123' } });
 ```
+
+## Watch mode
+
+```bash
+pnpx telaio gen-client --watch
+```
+
+When `--watch` is passed, `gen-client` watches `src/` for file changes and regenerates the client automatically. This is useful during development to keep the client in sync as you add or modify routes.
 
 <Callout type="info">
 Run `telaio gen-client` as part of your CI pipeline to keep the client in sync with the API spec. Commit the generated output so consumers of the client do not need to run generation themselves.

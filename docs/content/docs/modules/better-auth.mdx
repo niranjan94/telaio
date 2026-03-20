@@ -41,7 +41,7 @@ const adapter = createBetterAuthAdapter({
 
 ## The chicken-and-egg problem
 
-better-auth requires a database connection during its own initialization. But under normal usage, Telaio creates the pool inside `.build()` -- which runs after better-auth needs to be initialized.
+better-auth requires a database connection during its own initialization. But under normal usage, Telaio creates the pool inside `.buildApi()` -- which runs after better-auth needs to be initialized.
 
 Solve this by using the standalone factory functions to create the pool and database first, then pass the pre-built instances into both better-auth and the builder:
 
@@ -70,7 +70,7 @@ const adapter = createBetterAuthAdapter({ auth, organization: true });
 const app = await createApp({ config })
   .withDatabase({ pool, db })  // reuse -- don't create a second pool
   .withAuth(adapter)
-  .build();
+  .buildApi();
 ```
 
 <Callout type="warn">

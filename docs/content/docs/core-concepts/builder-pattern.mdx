@@ -1,11 +1,11 @@
 ---
 title: Builder Pattern
-description: How createApp() and AppBuilder wire together features, types, and assembly order into a single Promise<TelaioApp>.
+description: How createApp() and AppBuilder wire together features, types, and assembly order into TelaioApi or TelaioConsumer.
 ---
 
 # Builder Pattern
 
-The builder pattern is Telaio's primary composition mechanism. Instead of a single monolithic config object, you chain method calls to opt into features one by one. Each call narrows the TypeScript types so the final `TelaioApp` only exposes what you actually configured.
+The builder pattern is Telaio's primary composition mechanism. Instead of a single monolithic config object, you chain method calls to opt into features one by one. Each call narrows the TypeScript types so the final `TelaioApi` only exposes what you actually configured.
 
 ## Starting a builder
 
@@ -27,7 +27,7 @@ You never write these explicitly. They are inferred as you chain methods.
 
 ## Builder methods
 
-Each method returns a new `AppBuilder` with the updated type parameters. Nothing is constructed until you call `.build()`.
+Each method returns a new `AppBuilder` with the updated type parameters. Nothing is constructed until you call `.buildApi()` or `.buildConsumer()`.
 
 | Method | What it does | Type change |
 |--------|-------------|-------------|
@@ -39,8 +39,8 @@ Each method returns a new `AppBuilder` with the updated type parameters. Nothing
 | `.withApiDocs(options?)` | Registers Scalar UI at `/docs` | `F & { apiDocs: true }` |
 | `.withPlugins(options)` | Configures autoload dir, rate limiting, CORS, etc. | no change |
 | `.withSchemas(dir)` | Sets the directory for auto-registered TypeBox schemas | no change |
-| `.onReady(fn)` | Registers a hook called after `fastify.listen()` | no change |
-| `.onClose(fn)` | Registers a hook called during graceful shutdown | no change |
+| `.onStart(fn)` | Registers a hook called inside `start()` | no change |
+| `.onStop(fn)` | Registers a hook called inside `stop()` | no change |
 | `.withTempFiles()` | Enables temporary file upload support | no change |
 | `.asEphemeral()` | Skips lifecycle hooks (useful for tests) | no change |
 
@@ -59,7 +59,7 @@ const app = await createApp({ config })
   .withAuth(adapter)
   .withSwagger({ info: { title: 'My API', version: '1.0.0' } })
   .withApiDocs()
-  .build();
+  .buildApi();
 
 // All of these are fully typed:
 app.fastify   // FastifyInstance
@@ -73,9 +73,33 @@ app.logger    // Pino logger
 await app.start({ port: 3000 });
 ```
 
-## The TelaioApp shape
+## Build targets
 
-Calling `.build()` resolves to a `TelaioApp<F, TSession, TConfig>`. Some properties are always present; others are conditional on the feature flags baked into `F`.
+The builder has two terminal methods:
+
+- `.buildApi()` -- assembles a full Fastify server (`TelaioApi`)
+- `.buildConsumer()` -- assembles a lightweight queue worker (`TelaioConsumer`)
+
+Both share the same builder chain. A common pattern is to export a `getBuilder()` function and call the appropriate build method in each entry point:
+
+```typescript
+// app.ts
+export function getBuilder() {
+  return createApp({ config }).withDatabase().withQueues(registry);
+}
+
+// server.ts
+const server = await getBuilder().buildApi();
+await server.start();
+
+// consumer.ts
+const consumer = await getBuilder().buildConsumer();
+await consumer.start();
+```
+
+## The TelaioApi shape
+
+Calling `.buildApi()` resolves to a `TelaioApi<F, TSession, TConfig>`. Some properties are always present; others are conditional on the feature flags baked into `F`.
 
 **Always present:**
 
@@ -101,7 +125,7 @@ Accessing a conditional property without calling the corresponding `with*()` met
 
 ## Build assembly order
 
-`.build()` performs a fixed 12-step assembly. The order is not arbitrary -- Fastify's plugin model requires that hooks registered by a plugin only fire for routes registered after it.
+`.buildApi()` performs a fixed 12-step assembly. The order is not arbitrary -- Fastify's plugin model requires that hooks registered by a plugin only fire for routes registered after it.
 
 1. Create `FastifyInstance`
 2. Set up database -- pg pool, Kysely instance, CITEXT type parser
@@ -122,9 +146,9 @@ Swagger must be registered before routes. If you register routes first, the `onR
 
 ## The auth chicken-and-egg problem
 
-Some auth libraries (such as better-auth) require a database connection during their own initialization, before you call `.build()`. This creates a circular dependency: you need `pool` to configure auth, but `pool` is normally created inside `.build()`.
+Some auth libraries (such as better-auth) require a database connection during their own initialization, before you call `.buildApi()`. This creates a circular dependency: you need `pool` to configure auth, but `pool` is normally created inside `.buildApi()`.
 
-Telaio provides standalone factory functions that mirror what `.build()` would create internally. You can pass the pre-built instances back into the builder so the same connections are reused rather than duplicated.
+Telaio provides standalone factory functions that mirror what `.buildApi()` would create internally. You can pass the pre-built instances back into the builder so the same connections are reused rather than duplicated.
 
 ```typescript
 import { createPool, createDatabase } from 'telaio/db';
@@ -147,7 +171,7 @@ const adapter = createBetterAuthAdapter({ auth });
 const app = await createApp({ config })
   .withDatabase({ pool, db })  // reuse -- no second connection opened
   .withAuth(adapter)
-  .build();
+  .buildApi();
 ```
 
 <Callout type="warn">

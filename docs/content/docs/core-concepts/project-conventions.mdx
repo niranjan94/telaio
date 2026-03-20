@@ -140,9 +140,8 @@ The `telaio` CLI reads `telaio.config.ts` from the current working directory. It
 
 This file controls:
 
-- Which source files the CLI uses for `dev`, `build`, and `consumer` commands
+- Which source files the CLI uses for code generation
 - The output path for `gen-client`
-- The queue registry path for `consumer`
 
 See [Config System](/docs/core-concepts/config-system) for the full `defineConfig` API.
 
@@ -156,7 +155,7 @@ Every convention is a default, not a requirement.
 createApp({ config })
   .withPlugins({ autoload: { dir: 'src/api' } })
   // routes are now loaded from src/api/ instead of src/routes/
-  .build();
+  .buildApi();
 ```
 
 ### Disable route autoload entirely
@@ -165,7 +164,7 @@ createApp({ config })
 createApp({ config })
   .withPlugins({ autoload: false })
   // you are responsible for registering all route plugins manually
-  .build();
+  .buildApi();
 ```
 
 ### Custom schemas directory
@@ -173,7 +172,7 @@ createApp({ config })
 ```typescript
 createApp({ config })
   .withSchemas('src/my-schemas')
-  .build();
+  .buildApi();
 ```
 
 ### Disable schema auto-registration
@@ -181,7 +180,7 @@ createApp({ config })
 ```typescript
 createApp({ config })
   .withSchemas(false)
-  .build();
+  .buildApi();
 ```
 
 <Callout type="info">

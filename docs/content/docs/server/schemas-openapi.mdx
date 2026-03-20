@@ -179,7 +179,7 @@ const app = await createApp({ config })
       description: 'REST API for the My App platform',
     },
   })
-  .build();
+  .buildApi();
 ```
 
 ### SwaggerOptions
@@ -202,7 +202,7 @@ Call `.withApiDocs(options?)` to mount the Scalar interactive API reference.
 const app = await createApp({ config })
   .withSwagger({ info: { title: 'My API' } })
   .withApiDocs()
-  .build();
+  .buildApi();
 ```
 
 | URL | Contents |

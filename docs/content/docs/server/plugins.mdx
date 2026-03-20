@@ -48,7 +48,7 @@ const app = await createApp({ config })
       cascadeHooks: true,
     },
   })
-  .build();
+  .buildApi();
 ```
 
 ## CORS options
@@ -97,7 +97,7 @@ Call `.withTempFiles()` on the builder to enable automatic temp file management.
 const app = await createApp({ config })
   .withTempFiles()
   .withPlugins({ multipart: true })
-  .build();
+  .buildApi();
 ```
 
 | Decorator | Description |

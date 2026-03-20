@@ -59,7 +59,7 @@ export const app = await createApp({ config })
   .withDatabase()
   .withCache()
   .withPlugins({ cors: true })
-  .build();
+  .buildApi();
 ```
 
 Create `src/server.ts`:
@@ -119,7 +119,7 @@ const app = await createApp({ config })
   .withCache()
   .withSwagger({ info: { title: 'My API', version: '1.0.0' } })
   .withApiDocs()
-  .build();
+  .buildApi();
 ```
 
 Start the server and visit `http://localhost:4001/docs` for the interactive API explorer.
@@ -127,7 +127,7 @@ Start the server and visit `http://localhost:4001/docs` for the interactive API 
 ## Next Steps
 
 <Cards>
-  <Card title="Builder Pattern" href="/docs/core-concepts/builder-pattern" description="Understand how withDatabase(), withCache(), and build() work together." />
+  <Card title="Builder Pattern" href="/docs/core-concepts/builder-pattern" description="Understand how withDatabase(), withCache(), and buildApi() work together." />
   <Card title="Phantom Types" href="/docs/core-concepts/phantom-types" description="How TypeScript tracks enabled features at compile time." />
   <Card title="Config System" href="/docs/core-concepts/config-system" description="loadConfig() and defineConfig() for env-based configuration." />
   <Card title="Database" href="/docs/modules/database" description="Pool, Kysely, migrations, and query builders." />

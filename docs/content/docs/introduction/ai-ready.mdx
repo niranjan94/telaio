@@ -59,7 +59,7 @@ const fastify = Fastify({ logger: true });
 fastify.decorate('pool', pool);
 fastify.decorate('redis', redis);
 
-fastify.addHook('onClose', async () => {
+fastify.addHook('onStop', async () => {
   await pool.end();
   redis.disconnect();
 });
@@ -73,7 +73,7 @@ fastify.addHook('onClose', async () => {
 const app = await createApp(config)
   .withDatabase()
   .withCache()
-  .build();
+  .buildApi();
 
 // app.db, app.cache -- typed, available, discoverable.
 // Graceful shutdown handled. Config validated at startup.
@@ -102,7 +102,7 @@ If an agent generates code that calls `app.cache` on an app that was not built w
 const cached = await app.cache.get('key');
 //                        ^^^^^
 // Property 'cache' does not exist on type
-// 'TelaioApp<{ database: true; cache: false; ... }>'
+// 'TelaioApi<{ database: true; cache: false; ... }>'
 ```
 
 The agent sees the error, understands the constraint, and either adds `.withCache()` to the builder chain or restructures the code. No deploy-and-pray cycle. No runtime null pointer two hours later.
@@ -124,7 +124,7 @@ Consider a common task: "Add a new API endpoint that queries the database and ca
 const app = await createApp(config)
   .withDatabase()
   .withCache()
-  .build();
+  .buildApi();
 
 // The agent writes a route -- types guide every property access
 fastify.get('/users/:id', async (request) => {
@@ -155,7 +155,7 @@ But the gap is smaller than it appears, and the trade-off favors Telaio.
 
 **Telaio _is_ Fastify.** Route handlers, plugins, hooks, schemas, decorators -- all standard Fastify. The LLM already knows 80%+ of what it needs to write correct code in a Telaio project. The remaining 20% is a thin builder layer on top.
 
-**The builder pattern is self-documenting.** A single `createApp(config).withDatabase().withCache().build()` chain communicates the app's capabilities in one line. An LLM does not need training data to understand a fluent builder -- it reads the chain, sees what is available, and the types confirm it. This is not a complex abstraction. It is a method chain that says exactly what it does.
+**The builder pattern is self-documenting.** A single `createApp(config).withDatabase().withCache().buildApi()` chain communicates the app's capabilities in one line. An LLM does not need training data to understand a fluent builder -- it reads the chain, sees what is available, and the types confirm it. This is not a complex abstraction. It is a method chain that says exactly what it does.
 
 **Framework knowledge does not equal correct code.** An LLM "knowing" NestJS does not stop it from misconfiguring dependency injection, wiring the wrong provider, or using a stale decorator pattern from an older version. Familiarity with a framework's API surface is not the same as producing correct code within it. Phantom types provide a correctness guarantee that training-data familiarity never will. The compiler does not care whether the LLM has seen the pattern before -- it cares whether the code is type-safe.
 

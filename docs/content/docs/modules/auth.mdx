@@ -149,7 +149,7 @@ import { myAdapter } from './auth/adapter.js';
 
 const app = await createApp({ config })
   .withAuth(myAdapter)
-  .build();
+  .buildApi();
 ```
 
 The type parameter `TSession` is inferred from the adapter -- no explicit annotation needed.

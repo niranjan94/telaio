@@ -1,6 +1,6 @@
 ---
 title: Queue API Reference
-description: Complete reference for createQueueProducer(), startConsumer(), QueueProducer, and related types.
+description: Complete reference for createQueueProducer(), buildConsumer(), QueueProducer, and related types.
 ---
 
 # Queue API Reference
@@ -10,7 +10,7 @@ Telaio's queue layer wraps [pg-boss](https://github.com/timgit/pg-boss) with a t
 Import queue utilities from `telaio/queue`:
 
 ```typescript
-import { createQueueProducer, startConsumer } from 'telaio/queue';
+import { createQueueProducer } from 'telaio/queue';
 import type { QueueRegistry, QueueJobHandler, JobDataFor, QueueProducer } from 'telaio/queue';
 ```
 
@@ -87,40 +87,17 @@ await app.queue.send('send-welcome-email', {
 
 ---
 
-## startConsumer()
+## buildConsumer()
+
+Queue consumers are created using the builder's `.buildConsumer()` method. See [Builder Pattern - Build targets](/docs/core-concepts/builder-pattern#build-targets) for the full pattern.
 
 ```typescript
-async function startConsumer<TRegistry extends QueueRegistry>(
-  registry: TRegistry,
-  options: ConsumerOptions,
-): Promise<void>
+// consumer.ts
+import { getBuilder } from './app.js';
+
+const consumer = await getBuilder().buildConsumer();
+await consumer.start();
 ```
-
-Starts pg-boss worker processes for all queues defined in the registry. Each key in `registry` is a queue name; the value is the handler function called with batches of jobs.
-
-Call this in a separate worker process or in your main server process depending on your deployment model:
-
-```typescript
-import { startConsumer } from 'telaio/queue';
-import { registry } from './queues/registry.js';
-import config from './config.js';
-
-await startConsumer(registry, { connection: config });
-```
-
-### ConsumerOptions
-
-```typescript
-interface ConsumerOptions {
-  connection: QueueClientOptions | Record<string, unknown>;
-  logger?: Logger;
-}
-```
-
-| Option | Type | Description |
-|--------|------|-------------|
-| `connection` | `QueueClientOptions \| Record<string, unknown>` | pg-boss connection options or a loaded config record |
-| `logger` | `Logger` | Pino logger instance. If omitted, a default logger is created. |
 
 ---
 

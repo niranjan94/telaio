@@ -28,7 +28,6 @@ export default defineConfig({
   }),
   app: 'src/app.ts',
   client: { output: 'client' },
-  consumer: { registry: 'src/queues/registry/index.ts' },
 });
 ```
 
@@ -38,10 +37,8 @@ export default defineConfig({
 |-------|------|---------|
 | `modules` | `ConfigModules` | Which built-in config sections to include |
 | `extend` | `z.ZodType` | Additional Zod schema merged on top of the built-in sections |
-| `app` | `string` | Entry point for `telaio dev` and `telaio build` |
+| `app` | `string` | Entry point for CLI commands (e.g. `telaio gen-client`) |
 | `client` | `{ output: string }` | Output path for `telaio gen-client` |
-| `consumer` | `{ registry: string }` | Queue registry path for `telaio consumer` |
-| `dev` | `object` | Dev-server options |
 
 ## Loading config in your application
 

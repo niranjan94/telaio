@@ -83,7 +83,7 @@ When using the builder, cast `app.db` to the typed version:
 import type { DB } from './db/types.js';
 import type { Kysely } from 'kysely';
 
-const app = await createApp({ config }).withDatabase().build();
+const app = await createApp({ config }).withDatabase().buildApi();
 
 const db = app.db as Kysely<DB>;
 ```
@@ -105,6 +105,14 @@ DATABASE_URL=postgres://user:pass@localhost:5432/mydb
 <Callout type="info">
 Re-run `telaio db:types` after every migration that changes the schema. Keeping the generated types in sync with the database schema ensures that TypeScript catches column renames, type changes, and dropped columns at compile time.
 </Callout>
+
+## Watch mode
+
+```bash
+pnpx telaio db:types --watch
+```
+
+When `--watch` is passed, `db:types` watches your migration files for changes and regenerates types automatically after each migration.
 
 <Callout type="warn">
 The generated `src/db/types.ts` file is overwritten on every run. Do not add manual changes to this file -- put custom type augmentations in a separate file and import from there.

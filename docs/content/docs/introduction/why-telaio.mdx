@@ -13,7 +13,7 @@ Every service you build with Telaio shares the same foundation. PostgreSQL via K
 
 When you reach for Telaio, you are accepting a fixed stack in exchange for three concrete things:
 
-**No wiring overhead.** A one-liner `createApp().withDatabase().withCache().build()` gives you a fully wired Fastify app with a pg pool, Kysely instance, Redis cache, and all the scaffolding connected. You did not configure any of it. You just used it.
+**No wiring overhead.** A one-liner `createApp().withDatabase().withCache().buildApi()` gives you a fully wired Fastify app with a pg pool, Kysely instance, Redis cache, and all the scaffolding connected. You did not configure any of it. You just used it.
 
 **Zero per-service library decisions.** Every service in your fleet uses the same database client, the same queue system, the same auth approach. Onboarding a new team member means learning the stack once.
 
@@ -42,14 +42,14 @@ createApp()
   // AppBuilder<{ database: true; cache: false; ... }, unknown, ...>
   .withCache()
   // AppBuilder<{ database: true; cache: true; ... }, unknown, ...>
-  .build()
-  // Promise<TelaioApp<{ database: true; cache: true; ... }>>
+  .buildApi()
+  // Promise<TelaioApi<{ database: true; cache: true; ... }>>
 ```
 
-`TelaioApp<F>` uses conditional types to expose only the properties that were enabled:
+`TelaioApi<F>` uses conditional types to expose only the properties that were enabled:
 
 ```typescript
-type TelaioApp<F> = {
+type TelaioApi<F> = {
   fastify: FastifyInstance;
   start: () => Promise<void>;
   stop: () => Promise<void>;

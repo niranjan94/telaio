@@ -11,7 +11,7 @@ Telaio uses phantom types to turn "did you call `.withDatabase()` before accessi
 
 ## The Features interface
 
-Every `AppBuilder` and every `TelaioApp` carries an `F` type parameter constrained to `Features`:
+Every `AppBuilder` and every `TelaioApi` carries an `F` type parameter constrained to `Features`:
 
 ```typescript
 export interface Features {
@@ -31,7 +31,7 @@ export type DefaultFeatures = {
 };
 ```
 
-When you call `createApp()`, `F` starts as `DefaultFeatures` -- every flag is `false`. None of the optional properties exist on the resulting `TelaioApp`. They are literally not part of the type.
+When you call `createApp()`, `F` starts as `DefaultFeatures` -- every flag is `false`. None of the optional properties exist on the resulting `TelaioApi`. They are literally not part of the type.
 
 ## How a with*() call widens F
 
@@ -47,12 +47,12 @@ withApiDocs(options?):                      AppBuilder<F & { apiDocs: true },  T
 
 Each call produces a new type. The builder objects are immutable from TypeScript's perspective -- chaining `.withDatabase().withCache()` gives you `AppBuilder<DefaultFeatures & { database: true } & { cache: true }, ...>`, which simplifies to `AppBuilder<{ database: true; cache: true; queue: false; auth: false; apiDocs: false }, ...>`.
 
-## TelaioApp conditional intersections
+## TelaioApi conditional intersections
 
-`TelaioApp<F>` uses conditional types to add or omit properties based on the flags in `F`:
+`TelaioApi<F>` uses conditional types to add or omit properties based on the flags in `F`:
 
 ```typescript
-export type TelaioApp<F extends Features, TSession, TConfig> = {
+export type TelaioApi<F extends Features, TSession, TConfig> = {
   fastify: FastifyInstance;
   config: TConfig;
   logger: Logger;
@@ -71,20 +71,20 @@ The `& unknown` branches are the key. In TypeScript, `A & unknown` is always exa
 ```typescript
 import { createApp } from 'telaio';
 
-const app = await createApp({ config }).build();
+const app = await createApp({ config }).buildApi();
 // F = DefaultFeatures = { database: false; cache: false; ... }
 
 // TypeScript error: Property 'pool' does not exist on type
-// 'TelaioApp<{ database: false; cache: false; queue: false; auth: false; apiDocs: false }, ...>'
+// 'TelaioApi<{ database: false; cache: false; queue: false; auth: false; apiDocs: false }, ...>'
 console.log(app.pool);
 ```
 
-Adding `.withDatabase()` before `.build()` resolves the error:
+Adding `.withDatabase()` before `.buildApi()` resolves the error:
 
 ```typescript
 const app = await createApp({ config })
   .withDatabase()  // F becomes { database: true; cache: false; ... }
-  .build();
+  .buildApi();
 
 console.log(app.pool);  // pg.Pool -- no error
 console.log(app.db);    // Kysely<unknown> -- no error
@@ -101,7 +101,7 @@ The second type parameter, `TSession`, follows the same pattern but for authenti
 withAuth<S>(adapter: AuthAdapter<S>): AppBuilder<F & { auth: true }, S, TConfig>
 ```
 
-After `.build()`, the resulting `TelaioApp` exposes `auth: { session: TSession }`. More importantly, Fastify request objects gain a typed `maybeAuthSession` property -- your route handlers see the concrete session shape rather than `unknown`.
+After `.buildApi()`, the resulting `TelaioApi` exposes `auth: { session: TSession }`. More importantly, Fastify request objects gain a typed `maybeAuthSession` property -- your route handlers see the concrete session shape rather than `unknown`.
 
 ```typescript
 fastify.get('/profile', async (req, reply) => {

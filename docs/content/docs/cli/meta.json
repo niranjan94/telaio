@@ -4,8 +4,6 @@
     "overview",
     "init",
     "migrate",
-    "dev",
-    "consumer",
     "gen-client",
     "db-types"
   ]
