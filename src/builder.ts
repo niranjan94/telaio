@@ -13,7 +13,8 @@ import {
   registerCitextParser,
 } from './db/client.js';
 import { createLogger } from './logger/index.js';
-import { type QueueClientOptions, stopBoss } from './queue/client.js';
+import { getBoss, type QueueClientOptions, stopBoss } from './queue/client.js';
+import { registerQueueWorkers } from './queue/consumer.js';
 import {
   createQueueProducer,
   type QueueProducer,
@@ -33,6 +34,7 @@ import type {
   Features,
   StartOptions,
   TelaioApi,
+  TelaioConsumer,
 } from './types.js';
 
 /** Options for withDatabase(). Supports three modes: pool+db, pool-only, or from-config. */
@@ -429,6 +431,123 @@ export class AppBuilder<
     if (queueProducer) telaioApp.queue = queueProducer;
 
     return telaioApp;
+  }
+
+  /**
+   * Build a queue consumer that shares lifecycle hooks and infrastructure
+   * with the API server but does not create a Fastify instance.
+   * Requires withQueues() to have been called.
+   */
+  async buildConsumer(
+    this: AppBuilder<F & { queue: true }, TSession, TConfig>,
+  ): Promise<TelaioConsumer<F, TConfig>> {
+    const logger = this._logger;
+    const config = this._config;
+    const onStartCallbacks = this._onStart;
+    const onStopCallbacks = this._onStop;
+
+    if (!this._queueRegistry) {
+      throw new Error(
+        'telaio: buildConsumer() requires withQueues() to be called first.',
+      );
+    }
+
+    // Set up database if configured
+    let pool: import('pg').Pool | undefined;
+    // biome-ignore lint/suspicious/noExplicitAny: generic database type
+    let db: import('kysely').Kysely<any> | undefined;
+
+    if (this._dbOptions) {
+      const dbOpts = this._dbOptions;
+      pool =
+        dbOpts.pool ??
+        (await createPool(
+          dbOpts.poolOptions ?? (config as Record<string, unknown>),
+          logger,
+        ));
+      const camelCase =
+        dbOpts.databaseOptions?.camelCase ??
+        ((config as Record<string, unknown>).DATABASE_CAMEL_CASE as
+          | boolean
+          | undefined);
+      const resolvedDbOptions = { ...dbOpts.databaseOptions, camelCase };
+      db = dbOpts.db ?? (await createDatabase(pool, resolvedDbOptions));
+      if (dbOpts.citext !== false) {
+        await registerCitextParser(pool, logger);
+      }
+    }
+
+    // Set up cache if configured
+    let cache: Cache | undefined;
+    if (this._cacheOptions) {
+      const cacheOpts = this._cacheOptions;
+      cache =
+        cacheOpts.instance ??
+        createCache(
+          cacheOpts.cacheOptions ?? (config as Record<string, unknown>),
+          logger,
+        );
+    }
+
+    // Set up queue producer
+    const connOpts =
+      this._queueOptions?.connection ?? (config as Record<string, unknown>);
+    const queueProducer = createQueueProducer(connOpts, logger);
+    const queueRegistry = this._queueRegistry;
+
+    let shuttingDown = false;
+
+    // biome-ignore lint/suspicious/noExplicitAny: conditional properties based on features
+    const telaioConsumer: any = {
+      config,
+      logger,
+
+      async start() {
+        for (const fn of onStartCallbacks) {
+          await fn();
+        }
+
+        const boss = await getBoss(connOpts, logger);
+        await registerQueueWorkers(boss, queueRegistry, logger);
+
+        logger.info('consumer started');
+
+        // Graceful shutdown on signals
+        const requestShutdown = async () => {
+          if (shuttingDown) return;
+          shuttingDown = true;
+          await telaioConsumer.stop();
+        };
+
+        process.once('SIGINT', requestShutdown);
+        process.once('SIGTERM', requestShutdown);
+      },
+
+      async stop() {
+        for (const fn of onStopCallbacks) {
+          await fn();
+        }
+
+        await stopBoss(logger);
+
+        if (cache) {
+          await cache.close();
+        }
+        if (db) {
+          await db.destroy();
+        } else if (pool) {
+          await pool.end();
+        }
+        logger.info('consumer stopped');
+      },
+    };
+
+    if (pool) telaioConsumer.pool = pool;
+    if (db) telaioConsumer.db = db;
+    if (cache) telaioConsumer.cache = cache;
+    telaioConsumer.queue = queueProducer;
+
+    return telaioConsumer;
   }
 }
 

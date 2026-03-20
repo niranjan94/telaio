@@ -2,7 +2,12 @@ import type { Kysely } from 'kysely';
 import type { Pool } from 'pg';
 import { describe, expectTypeOf, it } from 'vitest';
 import { type AppBuilder, createApp } from '../../src/builder.js';
-import type { DefaultFeatures, TelaioApi, TelaioConsumer, TelaioApp } from '../../src/types.js';
+import type {
+  DefaultFeatures,
+  TelaioApi,
+  TelaioApp,
+  TelaioConsumer,
+} from '../../src/types.js';
 
 describe('builder phantom types', () => {
   it('createApp returns a builder with all features disabled', () => {
@@ -108,7 +113,11 @@ describe('builder phantom types', () => {
 
 describe('TelaioApi type', () => {
   it('has fastify, config, logger, start, stop', () => {
-    const app = {} as TelaioApi<DefaultFeatures, unknown, Record<string, never>>;
+    const app = {} as TelaioApi<
+      DefaultFeatures,
+      unknown,
+      Record<string, never>
+    >;
     expectTypeOf(app.fastify).toBeObject();
     expectTypeOf(app.config).toEqualTypeOf<Record<string, never>>();
     expectTypeOf(app.logger).toBeObject();
@@ -117,7 +126,11 @@ describe('TelaioApi type', () => {
   });
 
   it('with database has pool and db', () => {
-    const app = {} as TelaioApi<DefaultFeatures & { database: true }, unknown, Record<string, never>>;
+    const app = {} as TelaioApi<
+      DefaultFeatures & { database: true },
+      unknown,
+      Record<string, never>
+    >;
     expectTypeOf(app.pool).toEqualTypeOf<Pool>();
     expectTypeOf(app.db).toEqualTypeOf<Kysely<unknown>>();
   });
@@ -134,13 +147,19 @@ describe('TelaioConsumer type', () => {
   });
 
   it('with database has pool and db', () => {
-    const app = {} as TelaioConsumer<DefaultFeatures & { database: true }, Record<string, never>>;
+    const app = {} as TelaioConsumer<
+      DefaultFeatures & { database: true },
+      Record<string, never>
+    >;
     expectTypeOf(app.pool).toEqualTypeOf<Pool>();
     expectTypeOf(app.db).toEqualTypeOf<Kysely<unknown>>();
   });
 
   it('does not have auth', () => {
-    const app = {} as TelaioConsumer<DefaultFeatures & { auth: true }, Record<string, never>>;
+    const app = {} as TelaioConsumer<
+      DefaultFeatures & { auth: true },
+      Record<string, never>
+    >;
     expectTypeOf(app).not.toHaveProperty('auth');
   });
 });
