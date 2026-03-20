@@ -364,8 +364,8 @@ export class AppBuilder<
       });
     }
 
-    const onStartCallbacks = this._onStart;
-    const onStopCallbacks = this._onStop;
+    const onStartCallbacks = this._ephemeral ? [] : this._onStart;
+    const onStopCallbacks = this._ephemeral ? [] : this._onStop;
 
     // biome-ignore lint/suspicious/noExplicitAny: conditional properties based on features
     const telaioApp: any = {
@@ -443,8 +443,8 @@ export class AppBuilder<
   ): Promise<TelaioConsumer<F, TConfig>> {
     const logger = this._logger;
     const config = this._config;
-    const onStartCallbacks = this._onStart;
-    const onStopCallbacks = this._onStop;
+    const onStartCallbacks = this._ephemeral ? [] : this._onStart;
+    const onStopCallbacks = this._ephemeral ? [] : this._onStop;
 
     if (!this._queueRegistry) {
       throw new Error(

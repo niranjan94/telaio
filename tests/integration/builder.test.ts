@@ -171,6 +171,26 @@ describe('AppBuilder', () => {
     app = null; // prevent afterEach double-close
   });
 
+  it('ephemeral build skips onStart and onStop callbacks', async () => {
+    const onStart = vi.fn(async () => {});
+    const onStop = vi.fn(async () => {});
+
+    app = await createApp({ logger })
+      .withSchemas(false)
+      .withPlugins({ autoload: false })
+      .onStart(onStart)
+      .onStop(onStop)
+      .asEphemeral()
+      .buildApi();
+
+    await app.start({ port: 0 });
+    expect(onStart).not.toHaveBeenCalled();
+
+    await app.stop();
+    expect(onStop).not.toHaveBeenCalled();
+    app = null; // prevent afterEach double-close
+  });
+
   it('withSwagger configures OpenAPI metadata', async () => {
     app = await createApp({ logger })
       .withSchemas(false)
