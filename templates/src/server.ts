@@ -1,4 +1,4 @@
-import { buildApp } from './app.js';
+import { getBuilder } from './app.js';
 
-const app = await buildApp();
-await app.start();
+const server = await getBuilder().buildApi();
+await server.start();

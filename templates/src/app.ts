@@ -3,8 +3,8 @@ import { authAdapter } from './auth/adapter.js';
 import config from './config.js';
 import logger from './logger.js';
 
-/** Builds and configures the Fastify application. */
-export async function buildApp(ephemeral = false) {
+/** Shared app builder -- used by both server.ts and consumer.ts. */
+export function getBuilder(ephemeral = false) {
   const builder = createApp({ config, logger })
     .withPlugins({
       cors: {
@@ -24,5 +24,5 @@ export async function buildApp(ephemeral = false) {
     builder.asEphemeral();
   }
 
-  return builder.build();
+  return builder;
 }

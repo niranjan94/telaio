@@ -95,6 +95,7 @@ describe('telaio init', () => {
       'src/config.ts',
       'src/app.ts',
       'src/server.ts',
+      'src/consumer.ts',
       'src/logger.ts',
       'src/auth/client.ts',
       'src/auth/adapter.ts',
