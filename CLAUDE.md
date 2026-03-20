@@ -27,13 +27,13 @@ TypeScript-first Fastify 5 framework with a builder pattern and phantom types fo
 ```
 src/
   builder.ts          # AppBuilder — fluent API, phantom-typed features
-  types.ts            # TelaioApp<F, TSession, TConfig> conditional type
+  types.ts            # TelaioApi/TelaioConsumer conditional types
   index.ts            # Public API re-exports
   config/             # Composable Zod config with modules
   db/                 # createPool, createDatabase, Kysely migrations
     query-builders/   # Typed dynamic filters and sort/pagination helpers
   cache/              # Redis wrapper with graceful disabled mode
-  queue/              # pg-boss typed producer/consumer
+  queue/              # pg-boss typed producer + buildConsumer() worker
   auth/               # AuthAdapter<TSession> + Fastify plugin
     better-auth/      # better-auth integration: adapter, session hooks, email templates, SES sender
   email/              # React Email sender via SES
@@ -41,7 +41,7 @@ src/
   logger/             # Pino logger factory
   schema/             # TypeBox schema helpers
   server/             # Fastify plugins, hooks, Swagger, Scalar
-  cli/                # CLI commands: init, migrate, build, dev, gen-client, db:types
+  cli/                # CLI commands: init, migrate, build, gen-client, db:types
   errors/             # Typed HTTP errors (RequestError subclasses)
 
 docs/                 # Fumadocs UI (Next.js) — public documentation site
@@ -64,7 +64,8 @@ docs/                 # Fumadocs UI (Next.js) — public documentation site
 
 ## Key Patterns
 
-- **Builder phantom types:** `withDatabase()` returns `AppBuilder<F & { database: true }, ...>` — the built `TelaioApp` conditionally exposes `pool`/`db`/`cache`/`queue` based on feature flags.
+- **Builder phantom types:** `withDatabase()` returns `AppBuilder<F & { database: true }, ...>` -- `buildApi()` returns `TelaioApi` and `buildConsumer()` returns `TelaioConsumer`, both conditionally exposing `pool`/`db`/`cache`/`queue` based on feature flags.
+- **Two build targets:** `buildApi()` creates a Fastify server; `buildConsumer()` creates a lightweight pg-boss worker. Both share `onStart`/`onStop` lifecycle hooks.
 - **Optional peer deps:** All heavy deps (kysely, pg, redis, pg-boss, AWS SDK, etc.) are optional peer dependencies loaded via dynamic `import()` with clear error messages.
 - **Standalone factories:** `createPool`, `createDatabase`, `createCache` work independently of the builder — used to resolve auth chicken-and-egg (config → pool → auth lib → builder receives existing instances).
 - **Queue registry:** `satisfies Record<string, QueueJobHandler>` for type inference; `JobDataFor<TQueues, Name>` extracts payload types.
