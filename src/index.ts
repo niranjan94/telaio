@@ -30,6 +30,5 @@ export type {
   Features,
   StartOptions,
   TelaioApi,
-  TelaioApp,
   TelaioConsumer,
 } from './types.js';

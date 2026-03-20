@@ -1,5 +1,5 @@
 import type { Command } from 'commander';
-import type { TelaioApp } from '../types.js';
+import type { TelaioApi } from '../types.js';
 import { discoverAppModule } from './discover.js';
 import { loadCliMetadata } from './resolve-config.js';
 
@@ -18,11 +18,11 @@ const DEFAULT_PLUGINS = [
 export async function resolveTelaioApp(
   appModulePath: string,
   cwd: string,
-): Promise<TelaioApp> {
+): Promise<TelaioApi> {
   const mod = await import(new URL(appModulePath, `file://${cwd}/`).href);
 
   // Try builder functions in priority order (pass true for ephemeral)
-  const builderNames = ['buildFastifyApp', 'buildApp', 'build'];
+  const builderNames = ['buildApi', 'buildFastifyApp', 'buildApp'];
   for (const name of builderNames) {
     if (typeof mod[name] === 'function') {
       const result = await mod[name](true);

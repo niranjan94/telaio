@@ -45,18 +45,36 @@ export function registerConsumerCommand(program: Command): void {
         );
       }
 
-      // Import startConsumer from the queue module
-      const { startConsumer } = await import('../queue/consumer.js');
+      const { getBoss, stopBoss } = await import('../queue/client.js');
+      const { registerQueueWorkers } = await import('../queue/consumer.js');
       const { createLogger } = await import('../logger/index.js');
 
       const nodeEnv = (appConfig.NODE_ENV as string) ?? process.env.NODE_ENV;
       const logger = createLogger({
         pretty: nodeEnv !== 'production',
       });
+      const queueLogger = logger.child({ module: 'consumer' });
 
-      await startConsumer(queues, {
-        connection: { connectionString: databaseUrl },
-        logger,
-      });
+      const boss = await getBoss({ connectionString: databaseUrl }, logger);
+
+      if (Object.keys(queues).length === 0) {
+        queueLogger.error('No queues found to consume. Shutting down.');
+        await stopBoss(logger);
+        return;
+      }
+
+      await registerQueueWorkers(boss, queues, logger);
+      queueLogger.info('Consumer started.');
+
+      let shuttingDown = false;
+      const requestShutdown = async () => {
+        if (shuttingDown) return;
+        shuttingDown = true;
+        queueLogger.info('Shutting down consumer...');
+        await stopBoss(logger);
+      };
+
+      process.once('SIGINT', requestShutdown);
+      process.once('SIGTERM', requestShutdown);
     });
 }

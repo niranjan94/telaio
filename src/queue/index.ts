@@ -1,7 +1,5 @@
 export type { QueueClientOptions } from './client.js';
 export { _resetBoss, getBoss, stopBoss } from './client.js';
-export type { ConsumerOptions } from './consumer.js';
-export { startConsumer } from './consumer.js';
 export type {
   JobDataFor,
   QueueJobHandler,

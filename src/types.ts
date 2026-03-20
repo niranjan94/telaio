@@ -64,29 +64,3 @@ export type TelaioConsumer<
   : unknown) &
   (F['cache'] extends true ? { cache: unknown } : unknown) &
   (F['queue'] extends true ? { queue: unknown } : unknown);
-
-/**
- * The assembled telaio application. Properties are conditionally present
- * based on which features were enabled via the builder.
- */
-export type TelaioApp<
-  F extends Features = DefaultFeatures,
-  TSession = unknown,
-  TConfig extends Record<string, unknown> = Record<string, never>,
-> = {
-  /** The underlying Fastify instance. */
-  fastify: FastifyInstance;
-  /** Validated app configuration. */
-  config: TConfig;
-  /** Pino logger instance. */
-  logger: Logger;
-  /** Start the HTTP server. */
-  start: (options?: StartOptions) => Promise<void>;
-  /** Gracefully stop the server and all managed resources. */
-  stop: () => Promise<void>;
-} & (F['database'] extends true
-  ? { pool: import('pg').Pool; db: import('kysely').Kysely<unknown> }
-  : unknown) &
-  (F['cache'] extends true ? { cache: unknown } : unknown) &
-  (F['queue'] extends true ? { queue: unknown } : unknown) &
-  (F['auth'] extends true ? { auth: { session: TSession } } : unknown);
