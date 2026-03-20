@@ -2,7 +2,7 @@ import type { Kysely } from 'kysely';
 import type { Pool } from 'pg';
 import { describe, expectTypeOf, it } from 'vitest';
 import { type AppBuilder, createApp } from '../../src/builder.js';
-import type { DefaultFeatures, TelaioApp } from '../../src/types.js';
+import type { DefaultFeatures, TelaioApi, TelaioConsumer, TelaioApp } from '../../src/types.js';
 
 describe('builder phantom types', () => {
   it('createApp returns a builder with all features disabled', () => {
@@ -103,5 +103,58 @@ describe('builder phantom types', () => {
     type MyConfig = { APP_NAME: string; PORT: number };
     const app = {} as TelaioApp<DefaultFeatures, unknown, MyConfig>;
     expectTypeOf(app.config).toEqualTypeOf<MyConfig>();
+  });
+});
+
+describe('TelaioApi type', () => {
+  it('has fastify, config, logger, start, stop', () => {
+    const app = {} as TelaioApi<DefaultFeatures, unknown, Record<string, never>>;
+    expectTypeOf(app.fastify).toBeObject();
+    expectTypeOf(app.config).toEqualTypeOf<Record<string, never>>();
+    expectTypeOf(app.logger).toBeObject();
+    expectTypeOf(app.start).toBeFunction();
+    expectTypeOf(app.stop).toBeFunction();
+  });
+
+  it('with database has pool and db', () => {
+    const app = {} as TelaioApi<DefaultFeatures & { database: true }, unknown, Record<string, never>>;
+    expectTypeOf(app.pool).toEqualTypeOf<Pool>();
+    expectTypeOf(app.db).toEqualTypeOf<Kysely<unknown>>();
+  });
+});
+
+describe('TelaioConsumer type', () => {
+  it('has config, logger, start, stop but no fastify', () => {
+    const app = {} as TelaioConsumer<DefaultFeatures, Record<string, never>>;
+    expectTypeOf(app.config).toEqualTypeOf<Record<string, never>>();
+    expectTypeOf(app.logger).toBeObject();
+    expectTypeOf(app.start).toBeFunction();
+    expectTypeOf(app.stop).toBeFunction();
+    expectTypeOf(app).not.toHaveProperty('fastify');
+  });
+
+  it('with database has pool and db', () => {
+    const app = {} as TelaioConsumer<DefaultFeatures & { database: true }, Record<string, never>>;
+    expectTypeOf(app.pool).toEqualTypeOf<Pool>();
+    expectTypeOf(app.db).toEqualTypeOf<Kysely<unknown>>();
+  });
+
+  it('does not have auth', () => {
+    const app = {} as TelaioConsumer<DefaultFeatures & { auth: true }, Record<string, never>>;
+    expectTypeOf(app).not.toHaveProperty('auth');
+  });
+});
+
+describe('buildConsumer phantom type constraint', () => {
+  it('buildConsumer() is not callable without withQueues()', () => {
+    const builder = createApp();
+    // @ts-expect-error -- buildConsumer requires queue feature
+    expectTypeOf(builder.buildConsumer).toBeFunction();
+  });
+
+  it('buildConsumer() is callable after withQueues()', () => {
+    const registry = { testQueue: async () => {} };
+    const builder = createApp().withQueues(registry);
+    expectTypeOf(builder.buildConsumer).toBeFunction();
   });
 });

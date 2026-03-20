@@ -26,6 +26,46 @@ export interface StartOptions {
 }
 
 /**
+ * The assembled API server. Exposes the Fastify instance, config, logger,
+ * and conditionally database/cache/queue/auth based on enabled features.
+ */
+export type TelaioApi<
+  F extends Features = DefaultFeatures,
+  TSession = unknown,
+  TConfig extends Record<string, unknown> = Record<string, never>,
+> = {
+  fastify: FastifyInstance;
+  config: TConfig;
+  logger: Logger;
+  start: (options?: StartOptions) => Promise<void>;
+  stop: () => Promise<void>;
+} & (F['database'] extends true
+  ? { pool: import('pg').Pool; db: import('kysely').Kysely<unknown> }
+  : unknown) &
+  (F['cache'] extends true ? { cache: unknown } : unknown) &
+  (F['queue'] extends true ? { queue: unknown } : unknown) &
+  (F['auth'] extends true ? { auth: { session: TSession } } : unknown);
+
+/**
+ * The assembled queue consumer. No Fastify instance, no auth.
+ * Exposes config, logger, and conditionally database/cache/queue
+ * based on enabled features.
+ */
+export type TelaioConsumer<
+  F extends Features = DefaultFeatures,
+  TConfig extends Record<string, unknown> = Record<string, never>,
+> = {
+  config: TConfig;
+  logger: Logger;
+  start: () => Promise<void>;
+  stop: () => Promise<void>;
+} & (F['database'] extends true
+  ? { pool: import('pg').Pool; db: import('kysely').Kysely<unknown> }
+  : unknown) &
+  (F['cache'] extends true ? { cache: unknown } : unknown) &
+  (F['queue'] extends true ? { queue: unknown } : unknown);
+
+/**
  * The assembled telaio application. Properties are conditionally present
  * based on which features were enabled via the builder.
  */
