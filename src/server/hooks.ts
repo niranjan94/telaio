@@ -63,11 +63,11 @@ export async function registerHooks(
   options: {
     logger: Logger;
     tempFiles?: boolean;
-    onReady?: Array<() => Promise<void>>;
-    onClose?: Array<() => Promise<void>>;
+    onStart?: Array<() => Promise<void>>;
+    onStop?: Array<() => Promise<void>>;
   },
 ) {
-  const { logger, onReady, onClose } = options;
+  const { logger, onStart, onStop } = options;
 
   server.decorateRequest('startTime', undefined);
   server.decorateRequest('maybeAuthSession', null);
@@ -221,13 +221,13 @@ export async function registerHooks(
     done();
   });
 
-  if (onReady) {
-    for (const fn of onReady) {
+  if (onStart) {
+    for (const fn of onStart) {
       server.addHook('onReady', fn);
     }
   }
-  if (onClose) {
-    for (const fn of onClose) {
+  if (onStop) {
+    for (const fn of onStop) {
       server.addHook('onClose', fn);
     }
   }
