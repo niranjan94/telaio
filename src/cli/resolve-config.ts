@@ -10,6 +10,29 @@ import {
 } from '../config/index.js';
 import { readTelaioConfig } from './config.js';
 
+/** Candidate paths for the app builder module, in priority order. */
+const APP_MODULE_CANDIDATES = ['src/api/fastify.ts', 'src/app.ts'];
+
+/**
+ * Discovers the app builder module path.
+ * Checks metadata.app first, then convention candidates.
+ */
+export function discoverAppModule(
+  cwd: string,
+  metadata: CliMetadata,
+): string | null {
+  if (metadata.app) {
+    const explicit = path.resolve(cwd, metadata.app);
+    if (fs.existsSync(explicit)) return metadata.app;
+  }
+
+  for (const candidate of APP_MODULE_CANDIDATES) {
+    if (fs.existsSync(path.join(cwd, candidate))) return candidate;
+  }
+
+  return null;
+}
+
 /** Config file extensions to auto-discover, in priority order. */
 const CONFIG_EXTENSIONS = ['.ts', '.js', '.mts', '.mjs'];
 

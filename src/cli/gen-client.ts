@@ -1,7 +1,6 @@
 import type { Command } from 'commander';
 import type { TelaioApi } from '../types.js';
-import { discoverAppModule } from './discover.js';
-import { loadCliMetadata } from './resolve-config.js';
+import { discoverAppModule, loadCliMetadata } from './resolve-config.js';
 
 /** Default hey-api plugins for client generation. */
 const DEFAULT_PLUGINS = [
