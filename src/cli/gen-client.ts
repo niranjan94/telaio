@@ -154,20 +154,24 @@ export function registerGenClientCommand(program: Command): void {
           console.log('Watching src/ for changes...');
           let debounce: ReturnType<typeof setTimeout> | null = null;
 
-          await watcher.subscribe(cwd, (_err, events) => {
-            if (!events?.length) return;
-            const relevant = events.some((e) => {
-              const rel = path.relative(cwd, e.path);
-              return rel.startsWith(`src${path.sep}`) || rel === 'src';
-            });
-            if (!relevant) return;
+          await watcher.subscribe(
+            cwd,
+            (_err, events) => {
+              if (!events?.length) return;
+              const relevant = events.some((e) => {
+                const rel = path.relative(cwd, e.path);
+                return rel.startsWith(`src${path.sep}`) || rel === 'src';
+              });
+              if (!relevant) return;
 
-            if (debounce) clearTimeout(debounce);
-            debounce = setTimeout(async () => {
-              console.log('Changes detected, regenerating client...');
-              await generate();
-            }, 300);
-          }, { ignore: ['node_modules', '.git', 'dist', 'client'] });
+              if (debounce) clearTimeout(debounce);
+              debounce = setTimeout(async () => {
+                console.log('Changes detected, regenerating client...');
+                await generate();
+              }, 300);
+            },
+            { ignore: ['node_modules', '.git', 'dist', 'client'] },
+          );
 
           // Keep alive -- wait for signal
           await new Promise(() => {});

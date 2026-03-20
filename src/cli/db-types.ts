@@ -87,26 +87,36 @@ export function registerDbTypesCommand(program: Command): void {
           // Initial generation
           generate();
 
-          const migrationPaths = ['src/db/migrations', 'migrations', 'db/migrations'];
+          const migrationPaths = [
+            'src/db/migrations',
+            'migrations',
+            'db/migrations',
+          ];
           console.log('Watching migration files for changes...');
           let debounce: ReturnType<typeof setTimeout> | null = null;
 
-          await watcher.subscribe(cwd, (_err, events) => {
-            if (!events?.length) return;
-            const relevant = events.some((e) => {
-              const rel = path.relative(cwd, e.path);
-              return migrationPaths.some(
-                (p) => rel.startsWith(`${p}${path.sep}`) || rel === p,
-              );
-            });
-            if (!relevant) return;
+          await watcher.subscribe(
+            cwd,
+            (_err, events) => {
+              if (!events?.length) return;
+              const relevant = events.some((e) => {
+                const rel = path.relative(cwd, e.path);
+                return migrationPaths.some(
+                  (p) => rel.startsWith(`${p}${path.sep}`) || rel === p,
+                );
+              });
+              if (!relevant) return;
 
-            if (debounce) clearTimeout(debounce);
-            debounce = setTimeout(() => {
-              console.log('Migration changes detected, regenerating types...');
-              generate();
-            }, 300);
-          }, { ignore: ['node_modules', '.git', 'dist'] });
+              if (debounce) clearTimeout(debounce);
+              debounce = setTimeout(() => {
+                console.log(
+                  'Migration changes detected, regenerating types...',
+                );
+                generate();
+              }, 300);
+            },
+            { ignore: ['node_modules', '.git', 'dist'] },
+          );
 
           await new Promise(() => {});
         } else {
