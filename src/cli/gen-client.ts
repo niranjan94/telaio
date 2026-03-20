@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import type { Command } from 'commander';
 import type { TelaioApi } from '../types.js';
@@ -148,8 +149,27 @@ export function registerGenClientCommand(program: Command): void {
             );
           }
 
-          // Initial generation
-          await generate();
+          // Build args for the child process (same command, minus --watch)
+          const childArgs = ['gen-client'];
+          if (options.app) childArgs.push('--app', options.app);
+          if (options.output) childArgs.push('--output', options.output);
+          if (options.plugins) childArgs.push('--plugins', options.plugins);
+
+          const spawnGenClient = () =>
+            new Promise<void>((resolve) => {
+              const child = spawn(
+                process.execPath,
+                [process.argv[1], ...childArgs],
+                {
+                  stdio: 'inherit',
+                  cwd,
+                },
+              );
+              child.on('close', () => resolve());
+            });
+
+          // Initial generation in a child process
+          await spawnGenClient();
 
           console.log('Watching src/ for changes...');
           let debounce: ReturnType<typeof setTimeout> | null = null;
@@ -167,7 +187,7 @@ export function registerGenClientCommand(program: Command): void {
               if (debounce) clearTimeout(debounce);
               debounce = setTimeout(async () => {
                 console.log('Changes detected, regenerating client...');
-                await generate();
+                await spawnGenClient();
               }, 300);
             },
             { ignore: ['node_modules', '.git', 'dist', 'client'] },
