@@ -21,7 +21,7 @@ describe('error handling', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     const BodySchema = Type.Object({
       name: Type.String({ minLength: 1 }),
@@ -58,7 +58,7 @@ describe('error handling', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     app.fastify.post('/items', {
       schema: {
@@ -90,7 +90,7 @@ describe('error handling', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     // Capture the route schema after onRoute hook has mutated it
     const routeSchema = {
@@ -119,7 +119,7 @@ describe('error handling', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     const custom500 = Type.Object({ error: Type.String() });
     const routeSchema = {
@@ -145,7 +145,7 @@ describe('error handling', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     app.fastify.get('/not-found', {
       schema: {
@@ -175,7 +175,7 @@ describe('error handling', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     app.fastify.get('/crash', {
       schema: {

@@ -1,7 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import type { AuthAdapter } from '../../src/auth/adapter.js';
 import { type AppBuilder, createApp } from '../../src/builder.js';
-import type { DefaultFeatures, TelaioApp } from '../../src/types.js';
+import type { DefaultFeatures, TelaioApi } from '../../src/types.js';
 
 interface TestSession {
   userId: string;
@@ -46,8 +46,8 @@ describe('auth session flow', () => {
     >();
   });
 
-  it('TelaioApp with auth:true has auth.session typed', () => {
-    type App = TelaioApp<
+  it('TelaioApi with auth:true has auth.session typed', () => {
+    type App = TelaioApi<
       DefaultFeatures & { auth: true },
       TestSession,
       Record<string, never>
@@ -56,8 +56,8 @@ describe('auth session flow', () => {
     expectTypeOf(app.auth.session).toEqualTypeOf<TestSession>();
   });
 
-  it('TelaioApp without auth does not have auth property', () => {
-    type App = TelaioApp<DefaultFeatures, unknown, Record<string, never>>;
+  it('TelaioApi without auth does not have auth property', () => {
+    type App = TelaioApi<DefaultFeatures, unknown, Record<string, never>>;
     const app = {} as App;
     expectTypeOf(app).not.toHaveProperty('auth');
   });

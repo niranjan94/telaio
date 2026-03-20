@@ -5,7 +5,6 @@ import { type AppBuilder, createApp } from '../../src/builder.js';
 import type {
   DefaultFeatures,
   TelaioApi,
-  TelaioApp,
   TelaioConsumer,
 } from '../../src/types.js';
 
@@ -65,7 +64,7 @@ describe('builder phantom types', () => {
   });
 
   it('app built with withDatabase has pool and db', async () => {
-    const app = {} as TelaioApp<
+    const app = {} as TelaioApi<
       DefaultFeatures & { database: true },
       unknown,
       Record<string, never>
@@ -75,7 +74,7 @@ describe('builder phantom types', () => {
   });
 
   it('app built without withDatabase does not have pool or db', async () => {
-    const app = {} as TelaioApp<
+    const app = {} as TelaioApi<
       DefaultFeatures,
       unknown,
       Record<string, never>
@@ -85,7 +84,7 @@ describe('builder phantom types', () => {
   });
 
   it('app always has core properties', async () => {
-    const app = {} as TelaioApp<
+    const app = {} as TelaioApi<
       DefaultFeatures,
       unknown,
       Record<string, never>
@@ -106,7 +105,7 @@ describe('builder phantom types', () => {
 
   it('config type is accessible on the built app', async () => {
     type MyConfig = { APP_NAME: string; PORT: number };
-    const app = {} as TelaioApp<DefaultFeatures, unknown, MyConfig>;
+    const app = {} as TelaioApi<DefaultFeatures, unknown, MyConfig>;
     expectTypeOf(app.config).toEqualTypeOf<MyConfig>();
   });
 });

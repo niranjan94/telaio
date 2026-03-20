@@ -28,7 +28,7 @@ describe('error handling (E2E)', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     app.fastify.post('/items', {
       schema: {
@@ -64,7 +64,7 @@ describe('error handling (E2E)', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     app.fastify.post('/users', {
       schema: {
@@ -97,7 +97,7 @@ describe('error handling (E2E)', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     app.fastify.get('/missing', {
       schema: {
@@ -126,7 +126,7 @@ describe('error handling (E2E)', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     app.fastify.get('/crash', {
       schema: {
@@ -155,7 +155,7 @@ describe('error handling (E2E)', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     app.fastify.post('/items', {
       schema: {
@@ -184,7 +184,7 @@ describe('error handling (E2E)', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     app.fastify.post('/items', {
       schema: {
@@ -214,7 +214,7 @@ describe('error handling (E2E)', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     app.fastify.post('/items', {
       schema: {

@@ -24,7 +24,7 @@ describe.skipIf(skipE2e)('app lifecycle (E2E)', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     await app.start({ port: 0 });
     const addresses = app.fastify.addresses();
@@ -39,7 +39,7 @@ describe.skipIf(skipE2e)('app lifecycle (E2E)', () => {
       .withSchemas(false)
       .withPlugins({ autoload: false })
       .withDatabase()
-      .build();
+      .buildApi();
 
     const { rows } = await sql`SELECT 1 AS value`.execute(app.db);
     expect(rows).toHaveLength(1);
@@ -54,7 +54,7 @@ describe.skipIf(skipE2e)('app lifecycle (E2E)', () => {
       .withSchemas(false)
       .withPlugins({ autoload: false })
       .withDatabase()
-      .build();
+      .buildApi();
 
     const { rows } = await sql`SELECT 1 + 1 AS sum`.execute(app.db);
     expect(rows[0].sum).toBe(2);
@@ -68,7 +68,7 @@ describe.skipIf(skipE2e)('app lifecycle (E2E)', () => {
       .withSchemas(false)
       .withPlugins({ autoload: false })
       .withCache()
-      .build();
+      .buildApi();
 
     await app.cache.set('e2e-test-key', 'hello-world', 60);
     const value = await app.cache.get('e2e-test-key');
@@ -92,7 +92,7 @@ describe.skipIf(skipE2e)('app lifecycle (E2E)', () => {
       .withPlugins({ autoload: false })
       .withDatabase()
       .withCache()
-      .build();
+      .buildApi();
 
     expect(app.pool).toBeDefined();
     expect(app.db).toBeDefined();
@@ -110,7 +110,7 @@ describe.skipIf(skipE2e)('app lifecycle (E2E)', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     const response = await app.fastify.inject({
       method: 'GET',
@@ -134,7 +134,7 @@ describe.skipIf(skipE2e)('app lifecycle (E2E)', () => {
       .withPlugins({ autoload: false })
       .withDatabase()
       .withCache()
-      .build();
+      .buildApi();
 
     await app.start({ port: 0 });
 

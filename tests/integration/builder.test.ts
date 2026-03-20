@@ -26,7 +26,7 @@ describe('AppBuilder', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     const response = await app.fastify.inject({
       method: 'GET',
@@ -42,7 +42,7 @@ describe('AppBuilder', () => {
     app = await createApp({ config, logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     expect(app.config).toEqual(config);
   });
@@ -51,7 +51,7 @@ describe('AppBuilder', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     expect(app.logger).toBe(logger);
   });
@@ -60,7 +60,7 @@ describe('AppBuilder', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     app.fastify.get('/boom', async () => {
       throw new NotFoundError('gone forever');
@@ -82,7 +82,7 @@ describe('AppBuilder', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     app.fastify.get('/bad', async () => {
       throw new BadRequestError('bad thing');
@@ -102,7 +102,7 @@ describe('AppBuilder', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     app.fastify.get('/unknown', async () => {
       throw new Error('something broke');
@@ -125,7 +125,7 @@ describe('AppBuilder', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     // Built-in schemas should be retrievable
     const schemas = app.fastify.getSchemas();
@@ -141,7 +141,7 @@ describe('AppBuilder', () => {
       .withSchemas(false)
       .withPlugins({ autoload: false })
       .asEphemeral()
-      .build();
+      .buildApi();
 
     const response = await app.fastify.inject({
       method: 'GET',
@@ -152,22 +152,22 @@ describe('AppBuilder', () => {
     expect(response.statusCode).toBe(404);
   });
 
-  it('calls onReady and onClose callbacks', async () => {
-    const onReady = vi.fn(async () => {});
-    const onClose = vi.fn(async () => {});
+  it('calls onStart and onStop callbacks', async () => {
+    const onStart = vi.fn(async () => {});
+    const onStop = vi.fn(async () => {});
 
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .onReady(onReady)
-      .onClose(onClose)
-      .build();
+      .onStart(onStart)
+      .onStop(onStop)
+      .buildApi();
 
-    await app.fastify.ready();
-    expect(onReady).toHaveBeenCalledOnce();
+    await app.start({ port: 0 });
+    expect(onStart).toHaveBeenCalledOnce();
 
-    await app.fastify.close();
-    expect(onClose).toHaveBeenCalledOnce();
+    await app.stop();
+    expect(onStop).toHaveBeenCalledOnce();
     app = null; // prevent afterEach double-close
   });
 
@@ -179,7 +179,7 @@ describe('AppBuilder', () => {
         info: { title: 'Test API', version: '2.0.0' },
         tags: [{ name: 'Users', description: 'User endpoints' }],
       })
-      .build();
+      .buildApi();
 
     await app.fastify.ready();
 
@@ -200,7 +200,7 @@ describe('AppBuilder', () => {
       .withSchemas(false)
       .withPlugins({ autoload: false })
       .withApiDocs()
-      .build();
+      .buildApi();
 
     const docsResponse = await app.fastify.inject({
       method: 'GET',
@@ -224,7 +224,7 @@ describe('AppBuilder', () => {
     app = await createApp({ logger })
       .withSchemas(false)
       .withPlugins({ autoload: false })
-      .build();
+      .buildApi();
 
     // Start on a random port to avoid conflicts
     await app.start({ port: 0 });
@@ -243,11 +243,11 @@ describe('AppBuilder', () => {
       .withPlugins({ autoload: false, cors: false, helmet: false })
       .withSwagger({ info: { title: 'Chain Test' } })
       .withApiDocs()
-      .onReady(async () => {})
-      .onClose(async () => {});
+      .onStart(async () => {})
+      .onStop(async () => {});
 
     // Builder should still be usable
-    app = await builder.build();
+    app = await builder.buildApi();
     expect(app.fastify).toBeDefined();
   });
 
@@ -270,7 +270,7 @@ describe('AppBuilder', () => {
         .withSchemas(false)
         .withPlugins({ autoload: false })
         .withAuth(testAdapter)
-        .build();
+        .buildApi();
 
       app.fastify.get('/me', async (req) => {
         return { session: req.maybeAuthSession };
@@ -291,7 +291,7 @@ describe('AppBuilder', () => {
         .withSchemas(false)
         .withPlugins({ autoload: false })
         .withAuth(testAdapter)
-        .build();
+        .buildApi();
 
       app.fastify.get('/me', async (req) => {
         return { session: req.maybeAuthSession };
@@ -311,7 +311,7 @@ describe('AppBuilder', () => {
         .withSchemas(false)
         .withPlugins({ autoload: false })
         .withAuth(testAdapter)
-        .build();
+        .buildApi();
 
       app.fastify.get('/protected', {
         ...withAuth(),
@@ -333,7 +333,7 @@ describe('AppBuilder', () => {
         .withSchemas(false)
         .withPlugins({ autoload: false })
         .withAuth(testAdapter)
-        .build();
+        .buildApi();
 
       app.fastify.get('/protected', {
         ...withAuth(),
@@ -357,7 +357,7 @@ describe('AppBuilder', () => {
         .withSchemas(false)
         .withPlugins({ autoload: false })
         .withAuth(testAdapter)
-        .build();
+        .buildApi();
 
       app.fastify.get('/admin', {
         ...withAuth({ roles: ['superadmin'] }),
@@ -381,7 +381,7 @@ describe('AppBuilder', () => {
         .withSchemas(false)
         .withPlugins({ autoload: false })
         .withAuth(testAdapter)
-        .build();
+        .buildApi();
 
       app.fastify.get('/admin', {
         ...withAuth({ roles: ['admin', 'owner'] }),
@@ -404,7 +404,7 @@ describe('AppBuilder', () => {
         .withSchemas(false)
         .withPlugins({ autoload: false })
         .withAuth(testAdapter)
-        .build();
+        .buildApi();
 
       app.fastify.get('/custom', {
         ...withAuth({

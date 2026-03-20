@@ -6,12 +6,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { registerBuildCommand } from '../build.js';
 import { readTelaioConfig } from '../config.js';
 import { registerDbTypesCommand } from '../db-types.js';
-import {
-  matchesIncludePatterns,
-  parseAddFlag,
-  registerDevCommand,
-  stripAnsi,
-} from '../dev.js';
 import { registerGenClientCommand, resolveTelaioApp } from '../gen-client.js';
 import { registerInitCommand } from '../init.js';
 import { registerMigrateCommand } from '../migrate.js';
@@ -59,16 +53,6 @@ describe('CLI command registration', () => {
     const cmd = program.commands.find((c) => c.name() === 'build');
     expect(cmd).toBeDefined();
     expect(cmd?.description()).toBe('Run the sequential build pipeline');
-  });
-
-  it('registers dev command', () => {
-    const program = new Command();
-    registerDevCommand(program);
-    const cmd = program.commands.find((c) => c.name() === 'dev');
-    expect(cmd).toBeDefined();
-    expect(cmd?.description()).toBe(
-      'Run development processes with centralized file watching and auto-restart',
-    );
   });
 });
 
@@ -247,159 +231,76 @@ describe('readTelaioConfig', () => {
   });
 });
 
-describe('telaio dev helpers', () => {
-  describe('parseAddFlag', () => {
-    it('parses "name:command" format', () => {
-      const result = parseAddFlag('api:tsx watch src/server.ts');
-      expect(result).toEqual({
-        name: 'api',
-        command: 'tsx watch src/server.ts',
-      });
-    });
+describe('resolveTelaioApp', () => {
+  let tmpDir: string;
 
-    it('handles colons in the command part', () => {
-      const result = parseAddFlag('types:tsc -w --host 0.0.0.0:3000');
-      expect(result).toEqual({
-        name: 'types',
-        command: 'tsc -w --host 0.0.0.0:3000',
-      });
-    });
-
-    it('returns null for missing colon', () => {
-      expect(parseAddFlag('no-colon-here')).toBeNull();
-    });
-
-    it('returns null for leading colon', () => {
-      expect(parseAddFlag(':command')).toBeNull();
-    });
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'telaio-app-'));
   });
 
-  describe('stripAnsi', () => {
-    it('removes ANSI color codes', () => {
-      expect(stripAnsi('\x1b[31mred text\x1b[0m')).toBe('red text');
-    });
-
-    it('removes multiple ANSI sequences', () => {
-      expect(stripAnsi('\x1b[1m\x1b[34mbold blue\x1b[0m normal')).toBe(
-        'bold blue normal',
-      );
-    });
-
-    it('passes through plain text unchanged', () => {
-      expect(stripAnsi('no colors here')).toBe('no colors here');
-    });
-
-    it('removes OSC sequences', () => {
-      expect(stripAnsi('\x1b]0;title\x07rest')).toBe('rest');
-    });
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
-  describe('resolveTelaioApp', () => {
-    let tmpDir: string;
-
-    beforeEach(async () => {
-      tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'telaio-app-'));
-    });
-
-    afterEach(async () => {
-      await fs.rm(tmpDir, { recursive: true, force: true });
-    });
-
-    it('finds buildFastifyApp builder function', async () => {
-      await fs.writeFile(
-        path.join(tmpDir, 'app.mjs'),
-        `export function buildFastifyApp(ephemeral) {
+  it('finds buildFastifyApp builder function', async () => {
+    await fs.writeFile(
+      path.join(tmpDir, 'app.mjs'),
+      `export function buildFastifyApp(ephemeral) {
           return { fastify: { ready: async () => {}, close: async () => {} }, ephemeral };
         }`,
-        'utf-8',
-      );
+      'utf-8',
+    );
 
-      const app = await resolveTelaioApp('app.mjs', tmpDir);
-      expect(app.fastify).toBeDefined();
-    });
-
-    it('finds buildApp builder function', async () => {
-      await fs.writeFile(
-        path.join(tmpDir, 'app.mjs'),
-        `export function buildApp(ephemeral) {
-          return { fastify: { ready: async () => {}, close: async () => {} }, ephemeral };
-        }`,
-        'utf-8',
-      );
-
-      const app = await resolveTelaioApp('app.mjs', tmpDir);
-      expect(app.fastify).toBeDefined();
-    });
-
-    it('finds default export as builder function', async () => {
-      await fs.writeFile(
-        path.join(tmpDir, 'app.mjs'),
-        `export default function(ephemeral) {
-          return { fastify: { ready: async () => {}, close: async () => {} }, ephemeral };
-        }`,
-        'utf-8',
-      );
-
-      const app = await resolveTelaioApp('app.mjs', tmpDir);
-      expect(app.fastify).toBeDefined();
-    });
-
-    it('falls back to pre-built app export', async () => {
-      await fs.writeFile(
-        path.join(tmpDir, 'app.mjs'),
-        `export const app = { fastify: { ready: async () => {}, close: async () => {} } };`,
-        'utf-8',
-      );
-
-      const app = await resolveTelaioApp('app.mjs', tmpDir);
-      expect(app.fastify).toBeDefined();
-    });
-
-    it('throws when no app found', async () => {
-      await fs.writeFile(
-        path.join(tmpDir, 'app.mjs'),
-        `export const nothing = 42;`,
-        'utf-8',
-      );
-
-      await expect(resolveTelaioApp('app.mjs', tmpDir)).rejects.toThrow(
-        'could not find a TelaioApp',
-      );
-    });
+    const app = await resolveTelaioApp('app.mjs', tmpDir);
+    expect(app.fastify).toBeDefined();
   });
 
-  describe('matchesIncludePatterns', () => {
-    const cwd = '/project';
+  it('finds buildApp builder function', async () => {
+    await fs.writeFile(
+      path.join(tmpDir, 'app.mjs'),
+      `export function buildApp(ephemeral) {
+          return { fastify: { ready: async () => {}, close: async () => {} }, ephemeral };
+        }`,
+      'utf-8',
+    );
 
-    it('matches files inside an included directory', () => {
-      expect(
-        matchesIncludePatterns('/project/src/foo/bar.ts', ['src'], cwd),
-      ).toBe(true);
-    });
+    const app = await resolveTelaioApp('app.mjs', tmpDir);
+    expect(app.fastify).toBeDefined();
+  });
 
-    it('matches exact file paths', () => {
-      expect(matchesIncludePatterns('/project/.env', ['.env'], cwd)).toBe(true);
-    });
+  it('finds default export as builder function', async () => {
+    await fs.writeFile(
+      path.join(tmpDir, 'app.mjs'),
+      `export default function(ephemeral) {
+          return { fastify: { ready: async () => {}, close: async () => {} }, ephemeral };
+        }`,
+      'utf-8',
+    );
 
-    it('does not match files outside included patterns', () => {
-      expect(
-        matchesIncludePatterns('/project/dist/index.js', ['src', '.env'], cwd),
-      ).toBe(false);
-    });
+    const app = await resolveTelaioApp('app.mjs', tmpDir);
+    expect(app.fastify).toBeDefined();
+  });
 
-    it('does not match partial directory names', () => {
-      expect(
-        matchesIncludePatterns('/project/src-backup/file.ts', ['src'], cwd),
-      ).toBe(false);
-    });
+  it('falls back to pre-built app export', async () => {
+    await fs.writeFile(
+      path.join(tmpDir, 'app.mjs'),
+      `export const app = { fastify: { ready: async () => {}, close: async () => {} } };`,
+      'utf-8',
+    );
 
-    it('handles multiple patterns', () => {
-      expect(
-        matchesIncludePatterns('/project/.env', ['src', '.env'], cwd),
-      ).toBe(true);
-      expect(
-        matchesIncludePatterns('/project/src/app.ts', ['src', '.env'], cwd),
-      ).toBe(true);
-    });
+    const app = await resolveTelaioApp('app.mjs', tmpDir);
+    expect(app.fastify).toBeDefined();
+  });
+
+  it('throws when no app found', async () => {
+    await fs.writeFile(
+      path.join(tmpDir, 'app.mjs'),
+      `export const nothing = 42;`,
+      'utf-8',
+    );
+
+    await expect(resolveTelaioApp('app.mjs', tmpDir)).rejects.toThrow(
+      'could not find a TelaioApi',
+    );
   });
 });

@@ -41,7 +41,7 @@ export async function resolveTelaioApp(
   if (preBuilt?.fastify) return preBuilt;
 
   throw new Error(
-    `telaio: gen-client could not find a TelaioApp at '${appModulePath}'. ` +
+    `telaio: gen-client could not find a TelaioApi at '${appModulePath}'. ` +
       'The module must export a builder function (buildFastifyApp, buildApp, build) ' +
       'or a pre-built { app } with a .fastify instance.',
   );
