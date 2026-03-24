@@ -137,7 +137,8 @@
     "fastify-sse-v2": "^4.0.0",
     "kysely": "^0.28.0",
     "kysely-codegen": ">=0.18.0",
-    "pg": "^8.0.0",
+    "kysely-postgres-js": "^2.0.0",
+    "postgres": "^3.4.0",
     "pg-boss": "^12.0.0",
     "react-email": ">=4.0.0",
     "redis": "^5.0.0",
@@ -198,7 +199,10 @@
     "kysely-codegen": {
       "optional": true
     },
-    "pg": {
+    "postgres": {
+      "optional": true
+    },
+    "kysely-postgres-js": {
       "optional": true
     },
     "pg-boss": {
@@ -227,10 +231,10 @@
     "@testcontainers/postgresql": "^11.12.0",
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^24.10.13",
-    "@types/pg": "^8.0.0",
     "@types/react": "^19.0.0",
     "better-auth": "^1.5.0",
-    "postgres-array": "^3.0.4",
+    "kysely-postgres-js": "^2.0.0",
+    "postgres": "^3.4.0",
     "react": "^19.2.4",
     "testcontainers": "^11.12.0",
     "typescript": "^5.9.3",
