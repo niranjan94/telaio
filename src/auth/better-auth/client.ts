@@ -172,14 +172,16 @@ export function orgSessionHooks(options: OrgSessionHookOptions) {
           const { pool, getAuth, generateSlug } = options;
 
           // 1. Find user's most recent org membership
-          const memberRows = await pool`SELECT organization_id FROM members WHERE user_id = ${session.userId} ORDER BY created_at DESC LIMIT 1`;
+          const memberRows =
+            await pool`SELECT organization_id FROM members WHERE user_id = ${session.userId} ORDER BY created_at DESC LIMIT 1`;
           let organizationId = memberRows[0]?.organization_id as
             | string
             | undefined;
 
           // 2. If no membership, create a default organization
           if (!organizationId) {
-            const userRows = await pool`SELECT name FROM users WHERE id = ${session.userId}`;
+            const userRows =
+              await pool`SELECT name FROM users WHERE id = ${session.userId}`;
             const userName = userRows[0]?.name as string | undefined;
             if (!userName) throw new Error('User not found');
 
