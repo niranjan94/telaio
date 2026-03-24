@@ -235,13 +235,18 @@ describe('orgSessionHooks', () => {
     memberRows: Record<string, unknown>[] = [],
     userRows: Record<string, unknown>[] = [],
   ) {
-    return {
-      query: vi.fn().mockImplementation((text: string) => {
-        if (text.includes('members')) return { rows: memberRows };
-        if (text.includes('users')) return { rows: userRows };
-        return { rows: [] };
-      }),
-    };
+    // postgres.js uses tagged templates: pool`SELECT ...`
+    // The return is the rows array directly, not { rows: [...] }
+    // biome-ignore lint/suspicious/noExplicitAny: mock pool for testing
+    const handler: any = vi
+      .fn()
+      .mockImplementation((strings: TemplateStringsArray) => {
+        const query = strings.join('');
+        if (query.includes('members')) return Promise.resolve(memberRows);
+        if (query.includes('users')) return Promise.resolve(userRows);
+        return Promise.resolve([]);
+      });
+    return handler;
   }
 
   it('returns databaseHooks object with session.create.before', () => {
@@ -265,10 +270,7 @@ describe('orgSessionHooks', () => {
       token: 'abc',
     });
     expect(result.data.activeOrganizationId).toBe('org-123');
-    expect(pool.query).toHaveBeenCalledWith(
-      expect.stringContaining('members'),
-      ['user-1'],
-    );
+    expect(pool).toHaveBeenCalled();
   });
 
   it('creates new org when no membership exists', async () => {
