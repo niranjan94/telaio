@@ -40,7 +40,7 @@ export type TelaioApi<
   start: (options?: StartOptions) => Promise<void>;
   stop: () => Promise<void>;
 } & (F['database'] extends true
-  ? { pool: import('pg').Pool; db: import('kysely').Kysely<unknown> }
+  ? { pool: import('postgres').Sql; db: import('kysely').Kysely<unknown> }
   : unknown) &
   (F['cache'] extends true ? { cache: unknown } : unknown) &
   (F['queue'] extends true ? { queue: unknown } : unknown) &
@@ -60,7 +60,7 @@ export type TelaioConsumer<
   start: () => Promise<void>;
   stop: () => Promise<void>;
 } & (F['database'] extends true
-  ? { pool: import('pg').Pool; db: import('kysely').Kysely<unknown> }
+  ? { pool: import('postgres').Sql; db: import('kysely').Kysely<unknown> }
   : unknown) &
   (F['cache'] extends true ? { cache: unknown } : unknown) &
   (F['queue'] extends true ? { queue: unknown } : unknown);
