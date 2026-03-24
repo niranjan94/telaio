@@ -72,10 +72,13 @@ describe.skipIf(skipE2e)('migrations (E2E)', () => {
     )`.execute(db);
 
     // Insert array data
-    await sql`INSERT INTO citext_test (tags) VALUES (ARRAY['Hello', 'World']::citext[])`.execute(db);
+    await sql`INSERT INTO citext_test (tags) VALUES (ARRAY['Hello', 'World']::citext[])`.execute(
+      db,
+    );
 
     // Read it back via Kysely
-    const { rows } = await sql`SELECT tags FROM citext_test WHERE id = 1`.execute(db);
+    const { rows } =
+      await sql`SELECT tags FROM citext_test WHERE id = 1`.execute(db);
     const tags = rows[0]?.tags;
 
     // The critical assertion: tags should be a JS array, not a raw string like '{Hello,World}'
