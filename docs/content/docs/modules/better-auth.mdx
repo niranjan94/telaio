@@ -57,7 +57,7 @@ const config = loadConfig({ modules: { database: true } });
 const pool = await createPool(config);
 const db = await createDatabase<DB>(pool);
 
-// Step 2: Create better-auth instance using the same pool
+// Step 2: Create better-auth instance using the same sql connection
 const auth = betterAuth({
   database: { provider: 'pg', db: pool },
   // ... other better-auth config

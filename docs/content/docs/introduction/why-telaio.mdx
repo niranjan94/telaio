@@ -54,7 +54,7 @@ type TelaioApi<F> = {
   start: () => Promise<void>;
   stop: () => Promise<void>;
 } & (F['database'] extends true
-  ? { pool: pg.Pool; db: Kysely<DB> }
+  ? { pool: import('postgres').Sql; db: Kysely<DB> }
   : unknown) &
   (F['cache'] extends true ? { cache: Cache } : unknown);
 ```
@@ -67,7 +67,7 @@ Teams that want to ship without debating library choices per service. Organizati
 
 ## Who This Is Not For
 
-If you need to swap PostgreSQL for MySQL or MongoDB, Telaio is the wrong tool. The database layer is built around `pg` and Kysely specifically.
+If you need to swap PostgreSQL for MySQL or MongoDB, Telaio is the wrong tool. The database layer is built around `postgres.js` and Kysely specifically.
 
 If you are already using Prisma and love it, Telaio does not support it — there is no ORM abstraction layer. Kysely is the query builder, and that choice is structural.
 

@@ -38,10 +38,10 @@ Consider setting up a Fastify app with a database pool and Redis cache:
 ```typescript
 // Raw Fastify -- manual wiring (simplified, real projects are worse)
 import Fastify from 'fastify';
-import pg from 'pg';
+import postgres from 'postgres';
 import Redis from 'redis';
 
-const pool = new pg.Pool({
+const sql = postgres({
   host: process.env.DB_HOST,
   port: Number(process.env.DB_PORT),
   database: process.env.DB_NAME,
@@ -56,11 +56,11 @@ const redis = new Redis({
 });
 
 const fastify = Fastify({ logger: true });
-fastify.decorate('pool', pool);
+fastify.decorate('sql', sql);
 fastify.decorate('redis', redis);
 
 fastify.addHook('onStop', async () => {
-  await pool.end();
+  await sql.end();
   redis.disconnect();
 });
 

@@ -7,13 +7,13 @@ description: Why PostgreSQL, Kysely, Redis, pg-boss, Pino, TypeBox, and the rest
 
 Telaio's technology choices are fixed. This page explains what was chosen and why.
 
-## PostgreSQL + pg + Kysely
+## PostgreSQL + postgres.js + Kysely
 
-PostgreSQL is the database. Not because other databases are bad — because committing to one lets Telaio optimize for it deeply. The CITEXT parser, the migration system, pg-boss running on the same instance: these all assume Postgres.
+PostgreSQL is the database. Not because other databases are bad -- because committing to one lets Telaio optimize for it deeply. The migration system and pg-boss running on the same instance both assume Postgres.
 
-`pg` is the Node.js PostgreSQL client. It is the most mature option, and it is what `pg-boss` also uses.
+`postgres` (postgres.js) is the Node.js PostgreSQL client. It is fast, modern, and built for ESM. The Kysely integration uses `kysely-postgres-js` as the dialect adapter. Note that `pg-boss` uses `pg` internally for its own connection, which is separate from the application pool.
 
-Kysely is the query builder. It is SQL-first and fully type-safe — your DB schema flows through your queries. There is no magic schema inference, no ORM runtime, no N+1 footgun hidden behind a `.include()`. You write SQL, Kysely types it.
+Kysely is the query builder. It is SQL-first and fully type-safe -- your DB schema flows through your queries. There is no magic schema inference, no ORM runtime, no N+1 footgun hidden behind a `.include()`. You write SQL, Kysely types it.
 
 **Why not Prisma?** Prisma requires code generation, a custom migration system, and a runtime that does not compose well with Kysely's approach. Teams that are deep in Prisma should not use Telaio.
 
@@ -57,11 +57,11 @@ better-auth is a full-featured auth framework: sessions, OAuth, magic links, org
 
 ## Optional Peer Dependencies
 
-Every heavy dependency in Telaio is an optional peer dependency. `pg`, `kysely`, `redis`, `pg-boss`, `@aws-sdk/client-s3`, `@aws-sdk/client-ses` — none are hard dependencies of the package. They are loaded via dynamic `import()` at runtime.
+Every heavy dependency in Telaio is an optional peer dependency. `postgres`, `kysely`, `kysely-postgres-js`, `redis`, `pg-boss`, `@aws-sdk/client-s3`, `@aws-sdk/client-ses` -- none are hard dependencies of the package. They are loaded via dynamic `import()` at runtime.
 
 If a required peer dep is missing, Telaio throws a clear error message:
 ```
-telaio: createPool() requires 'pg' to be installed. Run: pnpm add pg
+telaio: createPool() requires 'postgres' to be installed. Run: pnpm add postgres
 ```
 
 This means you only pay for what you use. A service that does not use S3 does not have `@aws-sdk/client-s3` in its `node_modules`.

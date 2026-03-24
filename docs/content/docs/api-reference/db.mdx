@@ -8,7 +8,7 @@ description: Complete reference for createPool(), createDatabase(), migrations, 
 Import database utilities from `telaio/db`:
 
 ```typescript
-import { createPool, createDatabase, registerCitextParser, applyFilter } from 'telaio/db';
+import { createPool, createDatabase, applyFilter } from 'telaio/db';
 import { createMigrator, migrateToLatest, runFrameworkMigrations } from 'telaio/db/migrations';
 import { sortPaginateQuery } from 'telaio/db/query-builders';
 ```
@@ -21,10 +21,10 @@ import { sortPaginateQuery } from 'telaio/db/query-builders';
 async function createPool(
   options: PoolOptions | Record<string, unknown>,
   poolLogger?: Logger,
-): Promise<pg.Pool>
+): Promise<import('postgres').Sql>
 ```
 
-Creates and validates a `node-postgres` Pool. Accepts either explicit `PoolOptions` or a loaded config record. When passed a config record it reads `DATABASE_URL` and `DATABASE_SSL` automatically.
+Creates and configures a postgres.js `Sql` connection. Accepts either explicit `PoolOptions` or a loaded config record. When passed a config record it reads `DATABASE_URL` and `DATABASE_SSL` automatically.
 
 **Auto-SSL for AWS RDS:** if the connection string hostname contains `rds.amazonaws.com`, SSL is enabled automatically even without `ssl: true`.
 
@@ -58,9 +58,9 @@ interface PoolOptions {
 |--------|------|---------|-------------|
 | `connectionString` | `string` | -- | Full Postgres connection URI |
 | `ssl` | `boolean` | `false` | Enable SSL/TLS |
-| `max` | `number` | pg default (10) | Maximum pool size |
-| `idleTimeoutMillis` | `number` | pg default (10000) | How long an idle client is kept before closing |
-| `connectionTimeoutMillis` | `number` | pg default (0 = no timeout) | How long to wait for a connection before erroring |
+| `max` | `number` | postgres.js default (10) | Maximum pool size |
+| `idleTimeoutMillis` | `number` | postgres.js default (0) | How long an idle connection is kept before closing |
+| `connectionTimeoutMillis` | `number` | postgres.js default (0 = no timeout) | How long to wait for a connection before erroring |
 
 ---
 
@@ -68,12 +68,12 @@ interface PoolOptions {
 
 ```typescript
 async function createDatabase<DB>(
-  pool: pg.Pool,
+  sql: import('postgres').Sql,
   options?: DatabaseOptions,
 ): Promise<Kysely<DB>>
 ```
 
-Wraps a pg Pool in a Kysely instance using `PostgresDialect`. The `DB` generic is your database interface -- typically generated with `kysely-codegen` or written by hand.
+Wraps a postgres.js `Sql` instance in a Kysely instance using `PostgresJSDialect` (from `kysely-postgres-js`). The `DB` generic is your database interface -- typically generated with `kysely-codegen` or written by hand.
 
 `CamelCasePlugin` is always enabled. Database columns are `snake_case`; Kysely exposes them as `camelCase` in TypeScript.
 
@@ -84,7 +84,7 @@ const db = await createDatabase<DB>(pool);
 ```
 
 <Callout type="warn">
-`db.destroy()` also ends the underlying pg Pool via `PostgresDialect`. Never call both `db.destroy()` and `pool.end()` -- the second call throws "Called end on pool more than once".
+`db.destroy()` (Kysely) does NOT close the underlying postgres.js connection when using `PostgresJSDialect`. Always call `sql.end()` separately after `db.destroy()`.
 </Callout>
 
 ### DatabaseOptions
@@ -106,26 +106,6 @@ const db = await createDatabase<DB>(pool, {
   plugins: [new DeduplicateJoinsPlugin()],
 });
 ```
-
----
-
-## registerCitextParser()
-
-```typescript
-async function registerCitextParser(
-  pool: pg.Pool,
-  logger?: Logger,
-): Promise<void>
-```
-
-Registers a custom type parser for PostgreSQL's `CITEXT` type so that `CITEXT[]` columns are decoded as `string[]` rather than raw strings. Requires the `postgres-array` peer dependency.
-
-```typescript
-const pool = await createPool(config);
-await registerCitextParser(pool);
-```
-
-Call this before any queries if your schema uses `CITEXT[]` columns.
 
 ---
 

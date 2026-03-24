@@ -17,6 +17,10 @@ pnpx telaio db:types
 pnpm add -D kysely-codegen
 ```
 
+<Callout type="info">
+`kysely-codegen` uses `pg` internally for database connections. Install it as a dev dependency alongside `kysely-codegen`: `pnpm add -D pg`
+</Callout>
+
 ## Default behavior
 
 `telaio db:types` runs `kysely-codegen` with the following flags applied by default:

@@ -5,7 +5,7 @@ description: pg pool, Kysely query builder, migrations, dynamic filters, and sor
 
 # Database
 
-Telaio's database layer wraps `node-postgres` (pg) and [Kysely](https://kysely.dev) into a pair of factory functions. The builder's `.withDatabase()` method is a convenience wrapper around the same factories -- you can also call them directly when you need a connection before the builder is assembled (see [better-auth chicken-and-egg](/docs/modules/better-auth)).
+Telaio's database layer wraps [postgres.js](https://github.com/porsager/postgres) and [Kysely](https://kysely.dev) into a pair of factory functions. The builder's `.withDatabase()` method is a convenience wrapper around the same factories -- you can also call them directly when you need a connection before the builder is assembled (see [better-auth chicken-and-egg](/docs/modules/better-auth)).
 
 ## createPool()
 
@@ -35,9 +35,9 @@ const pool = await createPool({
 |--------|------|---------|-------------|
 | `connectionString` | `string` | -- | Full postgres connection URI |
 | `ssl` | `boolean` | `false` | Enable SSL/TLS |
-| `max` | `number` | pg default | Maximum pool size |
-| `idleTimeoutMillis` | `number` | pg default | How long an idle client is kept before being closed |
-| `connectionTimeoutMillis` | `number` | pg default | How long to wait acquiring a connection |
+| `max` | `number` | postgres.js default | Maximum pool size |
+| `idleTimeoutMillis` | `number` | postgres.js default | How long an idle connection is kept before being closed |
+| `connectionTimeoutMillis` | `number` | postgres.js default | How long to wait acquiring a connection |
 
 ## createDatabase\<DB\>()
 
@@ -47,7 +47,7 @@ import { createDatabase } from 'telaio/db';
 const db = await createDatabase<DB>(pool);
 ```
 
-`createDatabase` wraps the pool in a Kysely instance using `PostgresDialect`. The `DB` generic is the database interface you generate with [kysely-codegen](https://github.com/RobinBlomberg/kysely-codegen) or write by hand.
+`createDatabase` wraps the postgres.js `Sql` instance in a Kysely instance using `PostgresJSDialect` (from `kysely-postgres-js`). The `DB` generic is the database interface you generate with [kysely-codegen](https://github.com/RobinBlomberg/kysely-codegen) or write by hand.
 
 **CamelCasePlugin is enabled by default.** Database columns are `snake_case`; Kysely exposes them as `camelCase` in TypeScript.
 
@@ -85,21 +85,8 @@ const db = await createDatabase<DB>(pool, {
 When CamelCasePlugin is enabled (the default), any plugins you pass are appended after it.
 
 <Callout type="warn">
-`db.destroy()` also ends the underlying pg Pool via `PostgresDialect`. Never call both `db.destroy()` and `pool.end()` -- the second call will throw "Called end on pool more than once".
+`db.destroy()` (Kysely) does NOT close the underlying postgres.js connection when using `PostgresJSDialect`. Always call `sql.end()` separately after `db.destroy()`.
 </Callout>
-
-## registerCitextParser()
-
-If your schema uses PostgreSQL's `CITEXT` type (case-insensitive text), register the array parser so that `CITEXT[]` columns are decoded correctly:
-
-```typescript
-import { createPool, registerCitextParser } from 'telaio/db';
-
-const pool = await createPool(config);
-await registerCitextParser(pool);
-```
-
-This requires the `postgres-array` peer dependency to be installed.
 
 ## Builder integration
 
@@ -108,7 +95,7 @@ const app = await createApp({ config })
   .withDatabase()       // pool + db created from config
   .buildApi();
 
-app.pool  // pg.Pool
+app.pool  // postgres.Sql
 app.db    // Kysely<unknown> -- cast to Kysely<DB> as needed
 ```
 

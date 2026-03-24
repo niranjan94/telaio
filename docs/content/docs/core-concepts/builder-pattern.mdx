@@ -31,7 +31,7 @@ Each method returns a new `AppBuilder` with the updated type parameters. Nothing
 
 | Method | What it does | Type change |
 |--------|-------------|-------------|
-| `.withDatabase(options?)` | Registers a pg pool and Kysely instance | `F & { database: true }` |
+| `.withDatabase(options?)` | Registers a postgres.js `Sql` instance and Kysely instance | `F & { database: true }` |
 | `.withCache(options?)` | Registers a Redis-backed cache | `F & { cache: true }` |
 | `.withQueues(registry, options?)` | Registers pg-boss producer and typed consumers | `F & { queue: true }` |
 | `.withAuth(adapter)` | Registers the auth Fastify plugin | `F & { auth: true }`, `TSession = S` |
@@ -64,7 +64,7 @@ const app = await createApp({ config })
 // All of these are fully typed:
 app.fastify   // FastifyInstance
 app.config    // TConfig
-app.pool      // pg.Pool
+app.pool      // postgres.Sql
 app.db        // Kysely<DB>
 app.cache     // Redis wrapper
 app.queue     // pg-boss producer
@@ -115,7 +115,7 @@ Calling `.buildApi()` resolves to a `TelaioApi<F, TSession, TConfig>`. Some prop
 
 | Property | Requires | Type |
 |----------|---------|------|
-| `pool` | `database: true` | `pg.Pool` |
+| `pool` | `database: true` | `import('postgres').Sql` |
 | `db` | `database: true` | `Kysely<unknown>` |
 | `cache` | `cache: true` | Redis wrapper |
 | `queue` | `queue: true` | pg-boss producer |
@@ -128,7 +128,7 @@ Accessing a conditional property without calling the corresponding `with*()` met
 `.buildApi()` performs a fixed 12-step assembly. The order is not arbitrary -- Fastify's plugin model requires that hooks registered by a plugin only fire for routes registered after it.
 
 1. Create `FastifyInstance`
-2. Set up database -- pg pool, Kysely instance, CITEXT type parser
+2. Set up database -- postgres.js `Sql` instance, Kysely instance
 3. Set up queue producer (pg-boss)
 4. Set up cache (Redis or disabled stub)
 5. Register user plugins (`skipAutoload: true` -- routes are deferred)
@@ -161,7 +161,7 @@ import config from './config.js';
 const pool = await createPool(config);
 const db = await createDatabase<DB>(pool);
 
-// Step 2: pass the pool into the auth library
+// Step 2: pass the sql connection into the auth library
 const auth = createBetterAuth({
   database: { provider: 'pg', db: pool },
 });
@@ -175,5 +175,5 @@ const app = await createApp({ config })
 ```
 
 <Callout type="warn">
-`db.destroy()` (Kysely) also ends the underlying pg Pool through the `PostgresDialect`. Never call both `db.destroy()` and `pool.end()` -- the second call will throw because the pool is already closed.
+`db.destroy()` (Kysely) does NOT close the underlying postgres.js connection when using `PostgresJSDialect`. Always call `sql.end()` separately after `db.destroy()`.
 </Callout>

@@ -58,7 +58,7 @@ export type TelaioApi<F extends Features, TSession, TConfig> = {
   logger: Logger;
   start: (options?: StartOptions) => Promise<void>;
   stop: () => Promise<void>;
-} & (F['database'] extends true ? { pool: pg.Pool; db: Kysely<unknown> } : unknown)
+} & (F['database'] extends true ? { pool: import('postgres').Sql; db: Kysely<unknown> } : unknown)
   & (F['cache']    extends true ? { cache: unknown }                    : unknown)
   & (F['queue']    extends true ? { queue: unknown }                    : unknown)
   & (F['auth']     extends true ? { auth: { session: TSession } }       : unknown);
@@ -86,7 +86,7 @@ const app = await createApp({ config })
   .withDatabase()  // F becomes { database: true; cache: false; ... }
   .buildApi();
 
-console.log(app.pool);  // pg.Pool -- no error
+console.log(app.pool);  // postgres.Sql -- no error
 console.log(app.db);    // Kysely<unknown> -- no error
 console.log(app.cache); // error: cache flag is still false
 ```

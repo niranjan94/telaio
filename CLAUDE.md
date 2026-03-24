@@ -66,13 +66,13 @@ docs/                 # Fumadocs UI (Next.js) — public documentation site
 
 - **Builder phantom types:** `withDatabase()` returns `AppBuilder<F & { database: true }, ...>` -- `buildApi()` returns `TelaioApi` and `buildConsumer()` returns `TelaioConsumer`, both conditionally exposing `pool`/`db`/`cache`/`queue` based on feature flags.
 - **Two build targets:** `buildApi()` creates a Fastify server; `buildConsumer()` creates a lightweight pg-boss worker. Both share `onStart`/`onStop` lifecycle hooks.
-- **Optional peer deps:** All heavy deps (kysely, pg, redis, pg-boss, AWS SDK, etc.) are optional peer dependencies loaded via dynamic `import()` with clear error messages.
+- **Optional peer deps:** All heavy deps (kysely, kysely-postgres-js, postgres, redis, pg-boss, AWS SDK, etc.) are optional peer dependencies loaded via dynamic `import()` with clear error messages.
 - **Standalone factories:** `createPool`, `createDatabase`, `createCache` work independently of the builder — used to resolve auth chicken-and-egg (config → pool → auth lib → builder receives existing instances).
 - **Queue registry:** `satisfies Record<string, QueueJobHandler>` for type inference; `JobDataFor<TQueues, Name>` extracts payload types.
 
 ## Gotchas
 
-- `db.destroy()` (Kysely) also ends the underlying pg Pool via PostgresDialect — never call both `db.destroy()` and `pool.end()`.
+- `db.destroy()` (Kysely) does NOT close the postgres.js connection when using `PostgresJSDialect`. Always call `sql.end()` separately after `db.destroy()`.
 - Vitest 4 type tests use `vitest run --typecheck.only` (not the old `vitest typecheck` subcommand).
 - E2E tests require Docker running. If Docker is unavailable, tests skip gracefully via `describe.skipIf(skipE2e)`.
 - Config's `InferConfig<Modules, never>` collapses to `never` in Zod v4 — use `loadConfig()` with defaults instead of the generic directly.
