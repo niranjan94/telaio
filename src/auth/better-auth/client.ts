@@ -142,18 +142,10 @@ export function redisSecondaryStorage(cache?: Cache | null) {
   };
 }
 
-/** Minimal Pool interface for org session hooks (avoids hard dep on pg types). */
-interface PoolLike {
-  query(
-    text: string,
-    values?: unknown[],
-  ): Promise<{ rows: Record<string, unknown>[] }>;
-}
-
 /** Options for orgSessionHooks(). */
 export interface OrgSessionHookOptions {
-  /** pg Pool for querying members/users tables directly. */
-  pool: PoolLike;
+  /** postgres.js Sql instance for querying members/users tables directly. */
+  pool: import('postgres').Sql;
   /** Lazy getter for the auth instance (resolves circular ref with betterAuth() call). */
   getAuth: () => {
     api: {
@@ -180,21 +172,15 @@ export function orgSessionHooks(options: OrgSessionHookOptions) {
           const { pool, getAuth, generateSlug } = options;
 
           // 1. Find user's most recent org membership
-          const memberResult = await pool.query(
-            'SELECT organization_id FROM members WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1',
-            [session.userId],
-          );
-          let organizationId = memberResult.rows[0]?.organization_id as
+          const memberRows = await pool`SELECT organization_id FROM members WHERE user_id = ${session.userId} ORDER BY created_at DESC LIMIT 1`;
+          let organizationId = memberRows[0]?.organization_id as
             | string
             | undefined;
 
           // 2. If no membership, create a default organization
           if (!organizationId) {
-            const userResult = await pool.query(
-              'SELECT name FROM users WHERE id = $1',
-              [session.userId],
-            );
-            const userName = userResult.rows[0]?.name as string | undefined;
+            const userRows = await pool`SELECT name FROM users WHERE id = ${session.userId}`;
+            const userName = userRows[0]?.name as string | undefined;
             if (!userName) throw new Error('User not found');
 
             const slug = generateSlug
