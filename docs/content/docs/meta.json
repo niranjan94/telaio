@@ -8,6 +8,7 @@
     "server",
     "cli",
     "testing",
-    "api-reference"
+    "api-reference",
+    "upgrade-guide"
   ]
 }
