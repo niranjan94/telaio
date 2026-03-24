@@ -47,14 +47,14 @@ function shouldEnableSsl(
 export async function createPool(
   options: PoolOptions | Record<string, unknown>,
   poolLogger?: Logger,
-): Promise<import('pg').Pool> {
+): Promise<import('postgres').Sql> {
   // biome-ignore lint/suspicious/noExplicitAny: peer dep types
-  let pg: any;
+  let postgres: any;
   try {
-    pg = await import('pg');
+    postgres = (await import('postgres')).default;
   } catch {
     throw new Error(
-      "telaio: createPool() requires 'pg' to be installed. Run: pnpm add pg",
+      "telaio: createPool() requires 'postgres' to be installed. Run: pnpm add postgres",
     );
   }
 
@@ -62,8 +62,8 @@ export async function createPool(
 
   let connectionString: string;
   let ssl: { rejectUnauthorized: boolean } | undefined;
-  let idleTimeoutMillis: number;
-  let connectionTimeoutMillis: number;
+  let idleTimeout: number;
+  let connectTimeout: number;
   let max: number | undefined;
 
   if (
@@ -73,11 +73,12 @@ export async function createPool(
     const poolOpts = options as PoolOptions;
     connectionString = poolOpts.connectionString;
     ssl = shouldEnableSsl(connectionString, poolOpts.ssl);
-    idleTimeoutMillis = poolOpts.idleTimeoutMillis ?? 30_000;
-    connectionTimeoutMillis = poolOpts.connectionTimeoutMillis ?? 2_000;
+    idleTimeout = Math.round((poolOpts.idleTimeoutMillis ?? 30_000) / 1000);
+    connectTimeout = Math.round(
+      (poolOpts.connectionTimeoutMillis ?? 2_000) / 1000,
+    );
     max = poolOpts.max;
   } else {
-    // Config-style object
     const cfg = options as Record<string, unknown>;
     connectionString =
       (cfg.DATABASE_URL as string | undefined) ?? 'postgresql://localhost/app';
@@ -85,73 +86,28 @@ export async function createPool(
       connectionString,
       cfg.DATABASE_SSL as boolean | undefined,
     );
-    idleTimeoutMillis = 30_000;
-    connectionTimeoutMillis = 2_000;
+    idleTimeout = 30;
+    connectTimeout = 2;
   }
 
-  const pool = new pg.Pool({
-    connectionString,
+  return postgres(connectionString, {
     ssl,
-    idleTimeoutMillis,
-    connectionTimeoutMillis,
+    idle_timeout: idleTimeout,
+    connect_timeout: connectTimeout,
     ...(max !== undefined ? { max } : {}),
+    onnotice: (notice: { message: string }) => {
+      log.debug({ notice: notice.message }, 'Postgres notice');
+    },
   });
-
-  pool.on('error', (err: Error) => {
-    log.error({ err }, 'Postgres pool error');
-  });
-
-  return pool;
 }
 
 /**
- * Registers a CITEXT array parser on the pg types system.
- * This ensures that arrays of case-insensitive text columns are properly parsed.
- */
-export async function registerCitextParser(
-  pool: import('pg').Pool,
-  logger?: Logger,
-): Promise<void> {
-  const log = logger ?? createLogger({ level: 'warn', pretty: false });
-
-  let parseArray: (input: string) => string[];
-  try {
-    const mod = await import('postgres-array');
-    parseArray = mod.parse;
-  } catch {
-    log.debug('postgres-array not installed, skipping CITEXT parser');
-    return;
-  }
-
-  // biome-ignore lint/suspicious/noExplicitAny: pg.types varies
-  let pgTypes: any;
-  try {
-    pgTypes = (await import('pg')).types;
-  } catch {
-    return;
-  }
-
-  try {
-    const {
-      rows: [citextType],
-    } = await pool.query(
-      "SELECT typarray FROM pg_type WHERE typname = 'citext'",
-    );
-    if (citextType?.typarray) {
-      pgTypes.setTypeParser(citextType.typarray, parseArray);
-    }
-  } catch (e) {
-    log.error({ e }, 'Failed to register CITEXT array parser');
-  }
-}
-
-/**
- * Creates a Kysely database instance wrapping an existing pool.
+ * Creates a Kysely database instance wrapping an existing postgres.js connection.
  * Applies CamelCasePlugin by default for snake_case to camelCase mapping.
  * Pass `{ camelCase: false }` to disable it.
  */
 export async function createDatabase<DB>(
-  pool: import('pg').Pool,
+  sql: import('postgres').Sql,
   options?: DatabaseOptions,
 ): Promise<import('kysely').Kysely<DB>> {
   // biome-ignore lint/suspicious/noExplicitAny: peer dep types
@@ -164,7 +120,17 @@ export async function createDatabase<DB>(
     );
   }
 
-  const dialect = new kysely.PostgresDialect({ pool });
+  // biome-ignore lint/suspicious/noExplicitAny: peer dep types
+  let kyselyPostgresJs: any;
+  try {
+    kyselyPostgresJs = await import('kysely-postgres-js');
+  } catch {
+    throw new Error(
+      "telaio: createDatabase() requires 'kysely-postgres-js' to be installed. Run: pnpm add kysely-postgres-js",
+    );
+  }
+
+  const dialect = new kyselyPostgresJs.PostgresJSDialect({ postgres: sql });
 
   const plugins = [
     ...(options?.camelCase !== false ? [new kysely.CamelCasePlugin()] : []),
