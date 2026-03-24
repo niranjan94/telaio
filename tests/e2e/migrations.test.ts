@@ -16,7 +16,7 @@ const databaseUrl = skipE2e ? '' : inject('databaseUrl');
 const logger = createLogger({ level: 'silent', pretty: false });
 
 describe.skipIf(skipE2e)('migrations (E2E)', () => {
-  let pool: import('pg').Pool;
+  let pool: import('postgres').Sql;
   // biome-ignore lint/suspicious/noExplicitAny: generic database type
   let db: import('kysely').Kysely<any>;
 
@@ -31,8 +31,8 @@ describe.skipIf(skipE2e)('migrations (E2E)', () => {
     await sql`DROP TABLE IF EXISTS _telaio_migrations CASCADE`.execute(db);
     await sql`DROP TABLE IF EXISTS kysely_migration_lock CASCADE`.execute(db);
     await sql`DROP TABLE IF EXISTS kysely_migration CASCADE`.execute(db);
-    // db.destroy() also ends the underlying pool — no separate pool.end()
     await db.destroy();
+    await pool.end();
   });
 
   it('runs framework migrations against real PostgreSQL', async () => {
