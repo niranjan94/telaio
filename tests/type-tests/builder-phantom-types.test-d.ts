@@ -1,5 +1,5 @@
 import type { Kysely } from 'kysely';
-import type { Pool } from 'pg';
+import type { Sql } from 'postgres';
 import { describe, expectTypeOf, it } from 'vitest';
 import { type AppBuilder, createApp } from '../../src/builder.js';
 import type {
@@ -69,7 +69,7 @@ describe('builder phantom types', () => {
       unknown,
       Record<string, never>
     >;
-    expectTypeOf(app.pool).toEqualTypeOf<Pool>();
+    expectTypeOf(app.pool).toEqualTypeOf<Sql>();
     expectTypeOf(app.db).toEqualTypeOf<Kysely<unknown>>();
   });
 
@@ -130,7 +130,7 @@ describe('TelaioApi type', () => {
       unknown,
       Record<string, never>
     >;
-    expectTypeOf(app.pool).toEqualTypeOf<Pool>();
+    expectTypeOf(app.pool).toEqualTypeOf<Sql>();
     expectTypeOf(app.db).toEqualTypeOf<Kysely<unknown>>();
   });
 });
@@ -150,7 +150,7 @@ describe('TelaioConsumer type', () => {
       DefaultFeatures & { database: true },
       Record<string, never>
     >;
-    expectTypeOf(app.pool).toEqualTypeOf<Pool>();
+    expectTypeOf(app.pool).toEqualTypeOf<Sql>();
     expectTypeOf(app.db).toEqualTypeOf<Kysely<unknown>>();
   });
 
