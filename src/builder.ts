@@ -10,7 +10,6 @@ import {
   createPool,
   type DatabaseOptions,
   type PoolOptions,
-  registerCitextParser,
 } from './db/client.js';
 import { createLogger } from './logger/index.js';
 import { getBoss, type QueueClientOptions, stopBoss } from './queue/client.js';
@@ -39,8 +38,8 @@ import type {
 
 /** Options for withDatabase(). Supports three modes: pool+db, pool-only, or from-config. */
 export interface WithDatabaseOptions {
-  /** Pre-created pg.Pool (for sharing with auth libraries). */
-  pool?: import('pg').Pool;
+  /** Pre-created postgres.js connection (for sharing with auth libraries). */
+  pool?: import('postgres').Sql;
   /** Pre-created Kysely instance (for sharing with auth libraries). */
   // biome-ignore lint/suspicious/noExplicitAny: generic database type
   db?: import('kysely').Kysely<any>;
@@ -48,8 +47,6 @@ export interface WithDatabaseOptions {
   poolOptions?: PoolOptions;
   /** Kysely options when creating a database internally. */
   databaseOptions?: DatabaseOptions;
-  /** Whether to register the CITEXT array parser. Defaults to true. */
-  citext?: boolean;
 }
 
 /** Options for withCache(). */
@@ -255,7 +252,7 @@ export class AppBuilder<
     });
 
     // 0. Set up database if configured
-    let pool: import('pg').Pool | undefined;
+    let pool: import('postgres').Sql | undefined;
     // biome-ignore lint/suspicious/noExplicitAny: generic database type
     let db: import('kysely').Kysely<any> | undefined;
 
@@ -279,11 +276,6 @@ export class AppBuilder<
           | undefined);
       const resolvedDbOptions = { ...dbOpts.databaseOptions, camelCase };
       db = dbOpts.db ?? (await createDatabase(pool, resolvedDbOptions));
-
-      // Register CITEXT parser unless explicitly disabled
-      if (dbOpts.citext !== false) {
-        await registerCitextParser(pool, logger);
-      }
     }
 
     // 0b. Set up queue producer if configured
@@ -410,10 +402,9 @@ export class AppBuilder<
           await cache.close();
         }
         if (db) {
-          // db.destroy() also ends the underlying pool via PostgresDialect,
-          // so we skip pool.end() to avoid "Called end on pool more than once"
           await db.destroy();
-        } else if (pool) {
+        }
+        if (pool) {
           await pool.end();
         }
         logger.info('server stopped');
@@ -453,7 +444,7 @@ export class AppBuilder<
     }
 
     // Set up database if configured
-    let pool: import('pg').Pool | undefined;
+    let pool: import('postgres').Sql | undefined;
     // biome-ignore lint/suspicious/noExplicitAny: generic database type
     let db: import('kysely').Kysely<any> | undefined;
 
@@ -472,9 +463,6 @@ export class AppBuilder<
           | undefined);
       const resolvedDbOptions = { ...dbOpts.databaseOptions, camelCase };
       db = dbOpts.db ?? (await createDatabase(pool, resolvedDbOptions));
-      if (dbOpts.citext !== false) {
-        await registerCitextParser(pool, logger);
-      }
     }
 
     // Set up cache if configured
@@ -535,7 +523,8 @@ export class AppBuilder<
         }
         if (db) {
           await db.destroy();
-        } else if (pool) {
+        }
+        if (pool) {
           await pool.end();
         }
         logger.info('consumer stopped');
