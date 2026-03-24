@@ -1,9 +1,5 @@
 export type { DatabaseOptions, PoolOptions } from './client.js';
-export {
-  createDatabase,
-  createPool,
-  registerCitextParser,
-} from './client.js';
+export { createDatabase, createPool } from './client.js';
 export type {
   MigrateResult,
   MigrationResult,
