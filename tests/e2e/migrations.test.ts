@@ -60,6 +60,38 @@ describe.skipIf(skipE2e)('migrations (E2E)', () => {
     expect(second).toHaveLength(0);
   });
 
+  it('parses citext array columns as string arrays without manual parser registration', async () => {
+    // This test verifies that postgres.js handles citext arrays natively,
+    // which was previously done by registerCitextParser with node-postgres (pg).
+    await runFrameworkMigrations(db, logger); // creates citext extension
+
+    // Create a table with a citext[] column
+    await sql`CREATE TABLE citext_test (
+      id serial PRIMARY KEY,
+      tags citext[]
+    )`.execute(db);
+
+    // Insert array data
+    await sql`INSERT INTO citext_test (tags) VALUES (ARRAY['Hello', 'World']::citext[])`.execute(db);
+
+    // Read it back via Kysely
+    const { rows } = await sql`SELECT tags FROM citext_test WHERE id = 1`.execute(db);
+    const tags = rows[0]?.tags;
+
+    // The critical assertion: tags should be a JS array, not a raw string like '{Hello,World}'
+    expect(Array.isArray(tags)).toBe(true);
+    expect(tags).toEqual(['Hello', 'World']);
+
+    // Also verify case-insensitive behavior is preserved in the array values
+    const { rows: ciRows } = await sql`
+      SELECT tags FROM citext_test WHERE 'hello' = ANY(tags)
+    `.execute(db);
+    expect(ciRows).toHaveLength(1);
+
+    // Clean up
+    await sql`DROP TABLE IF EXISTS citext_test`.execute(db);
+  });
+
   it('runs user migrations from a directory', async () => {
     // Create a temp directory with a test migration using raw SQL (no kysely import)
     const tmpDir = await fs.mkdtemp(
