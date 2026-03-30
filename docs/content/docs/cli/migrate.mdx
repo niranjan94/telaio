@@ -70,6 +70,39 @@ Telaio uses two separate migration tables that never conflict with each other:
 
 `telaio migrate latest` runs framework migrations first, then your app migrations, in the correct dependency order. You do not need to manage framework migrations manually.
 
+## Customizing migration tables
+
+You can control the PostgreSQL schema and table names for migration tracking via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DATABASE_MIGRATION_SCHEMA` | `public` | PostgreSQL schema for all migration tracking tables and framework DDL |
+| `DATABASE_MIGRATION_TABLE` | `kysely_migration` | Table name for your app migrations |
+| `DATABASE_MIGRATION_LOCK_TABLE` | `kysely_migration_lock` | Lock table name for your app migrations |
+
+```bash
+# .env
+DATABASE_MIGRATION_SCHEMA=app
+DATABASE_MIGRATION_TABLE=my_migrations
+DATABASE_MIGRATION_LOCK_TABLE=my_migrations_lock
+```
+
+When `DATABASE_MIGRATION_SCHEMA` is set, Telaio will:
+
+1. Create the schema if it does not exist (`CREATE SCHEMA IF NOT EXISTS`)
+2. Place all migration tracking tables (`_telaio_migrations`, your app migration table) in that schema
+3. Create the `trigger_set_updated_at_timestamp()` function in that schema
+
+<Callout type="warn">
+Once you set these values, you must keep them the same for the lifetime of the project. Changing them after migrations have run will cause Kysely to create new empty tracking tables and attempt to re-run all migrations.
+</Callout>
+
+<Callout type="info">
+When using a custom schema, user migrations that reference `trigger_set_updated_at_timestamp()` in `CREATE TRIGGER` statements must schema-qualify the function name. For example: `"app".trigger_set_updated_at_timestamp()`.
+</Callout>
+
+Framework table names (`_telaio_migrations`, `_telaio_migrations_lock`) are not configurable.
+
 ## Custom migrations directory
 
 Pass `--dir` to override the default migrations directory:

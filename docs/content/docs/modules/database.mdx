@@ -129,11 +129,27 @@ import {
 | `migrateToLatest(options)` | Runs all pending app migrations (runs framework migrations first internally) |
 | `migrateUp(options)` | Runs the next pending app migration (runs framework migrations first internally) |
 | `migrateDown(options)` | Rolls back the last app migration (runs framework migrations first internally) |
-| `runFrameworkMigrations(db)` | Runs Telaio's own internal migrations -- called automatically by the above functions |
+| `runFrameworkMigrations(db, logger?, schema?)` | Runs Telaio's own internal migrations -- called automatically by the above functions |
 
 Telaio stores its internal migration state in `_telaio_migrations`. Your app migrations use a separate table (Kysely defaults to `kysely_migration`). The two tables never conflict.
 
 `migrateToLatest` runs framework migrations first automatically — you do not need to call `runFrameworkMigrations` before it.
+
+### Custom schema and table names
+
+Pass `migrationTableSchema`, `migrationTableName`, and `migrationLockTableName` in `MigratorOptions` to override defaults:
+
+```typescript
+await migrateToLatest({
+  db,
+  migrationsDir: 'src/db/migrations',
+  migrationTableSchema: 'app',
+  migrationTableName: 'my_migrations',
+  migrationLockTableName: 'my_migrations_lock',
+});
+```
+
+Or set the corresponding environment variables (`DATABASE_MIGRATION_SCHEMA`, `DATABASE_MIGRATION_TABLE`, `DATABASE_MIGRATION_LOCK_TABLE`) in your config. See [CLI Migrations](/docs/cli/migrate#customizing-migration-tables) for details.
 
 ## Dynamic filters (applyFilter)
 
