@@ -6,6 +6,7 @@ export type {
   MigratorOptions,
 } from './migrator.js';
 export {
+  createFrameworkMigrationProvider,
   createMigrationFile,
   createMigrator,
   migrateDown,
