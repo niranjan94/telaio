@@ -31,6 +31,9 @@ describe.skipIf(skipE2e)('migrations (E2E)', () => {
     await sql`DROP TABLE IF EXISTS _telaio_migrations CASCADE`.execute(db);
     await sql`DROP TABLE IF EXISTS kysely_migration_lock CASCADE`.execute(db);
     await sql`DROP TABLE IF EXISTS kysely_migration CASCADE`.execute(db);
+    // Clean up test schemas (from custom schema tests)
+    await sql`DROP SCHEMA IF EXISTS test_custom_schema CASCADE`.execute(db);
+    await sql`DROP SCHEMA IF EXISTS test_table_schema CASCADE`.execute(db);
     await db.destroy();
     await pool.end();
   });
@@ -146,6 +149,116 @@ export async function down(db) {
 
     // Clean up
     await sql`DROP TABLE IF EXISTS e2e_test_table`.execute(db);
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('runs migrations in a custom schema', async () => {
+    const customSchema = 'test_custom_schema';
+
+    // Run framework migrations with custom schema
+    const results = await runFrameworkMigrations(db, logger, customSchema);
+    expect(results.length).toBeGreaterThan(0);
+    for (const r of results) {
+      expect(r.status).toBe('Success');
+    }
+
+    // Verify the schema was created
+    const { rows: schemaRows } = await sql`
+      SELECT 1 FROM information_schema.schemata
+      WHERE schema_name = ${customSchema}
+    `.execute(db);
+    expect(schemaRows).toHaveLength(1);
+
+    // Verify framework migration tracking table is in the custom schema
+    const { rows: tableRows } = await sql`
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = ${customSchema}
+      AND table_name = '_telaio_migrations'
+    `.execute(db);
+    expect(tableRows).toHaveLength(1);
+
+    // Verify trigger function is in the custom schema
+    const { rows: funcRows } = await sql`
+      SELECT 1 FROM information_schema.routines
+      WHERE routine_schema = ${customSchema}
+      AND routine_name = 'trigger_set_updated_at_timestamp'
+    `.execute(db);
+    expect(funcRows).toHaveLength(1);
+
+    // Verify citext extension is still database-level (not schema-scoped)
+    const { rows: extRows } = await sql`
+      SELECT 1 FROM pg_extension WHERE extname = 'citext'
+    `.execute(db);
+    expect(extRows).toHaveLength(1);
+
+    // Clean up
+    await sql
+      .raw(`DROP SCHEMA IF EXISTS "${customSchema}" CASCADE`)
+      .execute(db);
+  });
+
+  it('runs user migrations with custom table names and schema', async () => {
+    const tmpDir = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'telaio-migrate-schema-'),
+    );
+    const customSchema = 'test_table_schema';
+
+    const migrationContent = `
+export async function up(db) {
+  await db.schema
+    .createTable('schema_test_table')
+    .addColumn('id', 'serial', (col) => col.primaryKey())
+    .execute();
+}
+
+export async function down(db) {
+  await db.schema.dropTable('schema_test_table').execute();
+}
+`;
+
+    await fs.writeFile(
+      path.join(tmpDir, '20250101000000_create_schema_test.ts'),
+      migrationContent,
+      'utf-8',
+    );
+
+    const result = await migrateToLatest({
+      db,
+      migrationsDir: tmpDir,
+      logger,
+      migrationTableSchema: customSchema,
+      migrationTableName: 'my_app_migrations',
+      migrationLockTableName: 'my_app_migrations_lock',
+    });
+
+    // Framework migrations ran
+    expect(result.framework.length).toBeGreaterThanOrEqual(1);
+
+    // User migration ran
+    expect(result.user).toHaveLength(1);
+    expect(result.user[0].status).toBe('Success');
+
+    // Verify custom user migration table is in the custom schema
+    const { rows: tableRows } = await sql`
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = ${customSchema}
+      AND table_name = 'my_app_migrations'
+    `.execute(db);
+    expect(tableRows).toHaveLength(1);
+
+    // Verify custom lock table is in the custom schema
+    const { rows: lockRows } = await sql`
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema = ${customSchema}
+      AND table_name = 'my_app_migrations_lock'
+    `.execute(db);
+    expect(lockRows).toHaveLength(1);
+
+    // Clean up
+    await sql`DROP TABLE IF EXISTS schema_test_table`.execute(db);
+    await sql
+      .raw(`DROP SCHEMA IF EXISTS "${customSchema}" CASCADE`)
+      .execute(db);
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 });
