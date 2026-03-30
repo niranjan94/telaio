@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { Migration, MigrationProvider } from 'kysely';
-import { FileMigrationProvider, Migrator, sql } from 'kysely';
+import type { MigrationProvider } from 'kysely';
+import { FileMigrationProvider, Migrator } from 'kysely';
 import type { Logger } from 'pino';
 import { createLogger } from '../logger/index.js';
 
@@ -90,9 +90,11 @@ export async function down(db: Kysely<any>): Promise<void> {
 }
 
 /**
- * Returns an inline MigrationProvider for framework migrations.
- * When a custom schema is provided (and is not 'public'), the trigger
- * function DDL is schema-qualified.
+ * Returns a MigrationProvider for framework migrations, built from
+ * individual migration files in src/db/migrations/.
+ *
+ * Each migration file exports a `create(schema?)` factory so that
+ * DDL can be schema-qualified when a custom schema is provided.
  */
 export function createFrameworkMigrationProvider(
   schema?: string,
@@ -104,41 +106,22 @@ export function createFrameworkMigrationProvider(
     );
   }
 
-  const qualifiedName =
-    schema !== undefined && schema !== 'public'
-      ? `"${schema}".trigger_set_updated_at_timestamp`
-      : 'trigger_set_updated_at_timestamp';
+  return {
+    async getMigrations() {
+      const citextExt = await import(
+        './migrations/20250101000000_telaio_citext_extension.js'
+      );
+      const updatedAtTrigger = await import(
+        './migrations/20250101000001_telaio_updated_at_trigger.js'
+      );
 
-  const migrations: Record<string, Migration> = {
-    '20250101000000_telaio_citext_extension': {
-      async up(db) {
-        await sql`CREATE EXTENSION IF NOT EXISTS citext`.execute(db);
-      },
-      async down(db) {
-        await sql`DROP EXTENSION IF EXISTS citext`.execute(db);
-      },
-    },
-    '20250101000001_telaio_updated_at_trigger': {
-      async up(db) {
-        await sql
-          .raw(
-            `CREATE OR REPLACE FUNCTION ${qualifiedName}()
-            RETURNS TRIGGER AS $$
-            BEGIN
-              NEW.updated_at = now();
-              RETURN NEW;
-            END;
-            $$ LANGUAGE plpgsql`,
-          )
-          .execute(db);
-      },
-      async down(db) {
-        await sql.raw(`DROP FUNCTION IF EXISTS ${qualifiedName}()`).execute(db);
-      },
+      return {
+        '20250101000000_telaio_citext_extension': citextExt.create(schema),
+        '20250101000001_telaio_updated_at_trigger':
+          updatedAtTrigger.create(schema),
+      };
     },
   };
-
-  return { getMigrations: async () => migrations };
 }
 
 /**
