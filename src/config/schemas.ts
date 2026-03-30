@@ -44,6 +44,21 @@ export const databaseConfigSchema = z.object({
   DATABASE_URL: z.url().default('postgresql://localhost/app'),
   DATABASE_SSL: envBoolean.optional(),
   DATABASE_CAMEL_CASE: envBoolean.default(true),
+  DATABASE_MIGRATION_SCHEMA: z
+    .string()
+    .min(1)
+    .regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/)
+    .optional(),
+  DATABASE_MIGRATION_TABLE: z
+    .string()
+    .min(1)
+    .regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/)
+    .optional(),
+  DATABASE_MIGRATION_LOCK_TABLE: z
+    .string()
+    .min(1)
+    .regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/)
+    .optional(),
 });
 
 /** Redis cache config. */
