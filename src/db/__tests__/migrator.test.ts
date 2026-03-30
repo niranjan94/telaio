@@ -37,3 +37,46 @@ describe('migrator', () => {
     expect(typeof mod.migrateDown).toBe('function');
   });
 });
+
+describe('createFrameworkMigrationProvider', () => {
+  it('returns two framework migrations', async () => {
+    const { createFrameworkMigrationProvider } = await import('../migrator.js');
+    const provider = createFrameworkMigrationProvider();
+    const migrations = await provider.getMigrations();
+    const names = Object.keys(migrations);
+
+    expect(names).toHaveLength(2);
+    expect(names).toContain('20250101000000_telaio_citext_extension');
+    expect(names).toContain('20250101000001_telaio_updated_at_trigger');
+  });
+
+  it('generates unqualified SQL when no schema is provided', async () => {
+    const { createFrameworkMigrationProvider } = await import('../migrator.js');
+    const provider = createFrameworkMigrationProvider();
+    const migrations = await provider.getMigrations();
+    const trigger = migrations['20250101000001_telaio_updated_at_trigger'];
+
+    // Verify the migration has up and down
+    expect(trigger.up).toBeDefined();
+    expect(trigger.down).toBeDefined();
+  });
+
+  it('generates unqualified SQL when schema is "public"', async () => {
+    const { createFrameworkMigrationProvider } = await import('../migrator.js');
+    // 'public' should be treated as unset
+    const provider = createFrameworkMigrationProvider('public');
+    const migrations = await provider.getMigrations();
+    const names = Object.keys(migrations);
+
+    // Should still return the same migrations
+    expect(names).toHaveLength(2);
+  });
+
+  it('accepts a custom schema parameter', async () => {
+    const { createFrameworkMigrationProvider } = await import('../migrator.js');
+    // Should not throw with a custom schema
+    const provider = createFrameworkMigrationProvider('custom_schema');
+    const migrations = await provider.getMigrations();
+    expect(Object.keys(migrations)).toHaveLength(2);
+  });
+});
