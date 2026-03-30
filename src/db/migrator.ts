@@ -13,6 +13,12 @@ export interface MigratorOptions {
   migrationsDir: string;
   /** Logger instance. */
   logger?: Logger;
+  /** PostgreSQL schema for migration tracking tables. Defaults to public. */
+  migrationTableSchema?: string;
+  /** User migration table name. Defaults to 'kysely_migration'. */
+  migrationTableName?: string;
+  /** User migration lock table name. Defaults to 'kysely_migration_lock'. */
+  migrationLockTableName?: string;
 }
 
 /** Result of a migration operation. */
@@ -27,12 +33,25 @@ export interface MigrationResult {
  * Framework migrations are handled separately via `runFrameworkMigrations()`.
  */
 export function createMigrator(options: MigratorOptions): Migrator {
+  const schema =
+    options.migrationTableSchema !== undefined &&
+    options.migrationTableSchema !== 'public'
+      ? options.migrationTableSchema
+      : undefined;
+
   return new Migrator({
     db: options.db,
     provider: new FileMigrationProvider({
       fs,
       path,
       migrationFolder: options.migrationsDir,
+    }),
+    ...(schema !== undefined && { migrationTableSchema: schema }),
+    ...(options.migrationTableName !== undefined && {
+      migrationTableName: options.migrationTableName,
+    }),
+    ...(options.migrationLockTableName !== undefined && {
+      migrationLockTableName: options.migrationLockTableName,
     }),
   });
 }
