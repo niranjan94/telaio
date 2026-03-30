@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { FileMigrationProvider, Migrator } from 'kysely';
+import type { Migration, MigrationProvider } from 'kysely';
+import { FileMigrationProvider, Migrator, sql } from 'kysely';
 import type { Logger } from 'pino';
 import { createLogger } from '../logger/index.js';
 
@@ -89,7 +90,59 @@ export async function down(db: Kysely<any>): Promise<void> {
 }
 
 /**
- * Runs framework-owned migrations from telaio's built-in migration directory.
+ * Returns an inline MigrationProvider for framework migrations.
+ * When a custom schema is provided (and is not 'public'), the trigger
+ * function DDL is schema-qualified.
+ */
+export function createFrameworkMigrationProvider(
+  schema?: string,
+): MigrationProvider {
+  // Defensive validation for programmatic callers that bypass Zod config
+  if (schema !== undefined && !/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schema)) {
+    throw new Error(
+      `Invalid migration schema name "${schema}": must be a valid PostgreSQL identifier`,
+    );
+  }
+
+  const qualifiedName =
+    schema !== undefined && schema !== 'public'
+      ? `"${schema}".trigger_set_updated_at_timestamp`
+      : 'trigger_set_updated_at_timestamp';
+
+  const migrations: Record<string, Migration> = {
+    '20250101000000_telaio_citext_extension': {
+      async up(db) {
+        await sql`CREATE EXTENSION IF NOT EXISTS citext`.execute(db);
+      },
+      async down(db) {
+        await sql`DROP EXTENSION IF EXISTS citext`.execute(db);
+      },
+    },
+    '20250101000001_telaio_updated_at_trigger': {
+      async up(db) {
+        await sql
+          .raw(
+            `CREATE OR REPLACE FUNCTION ${qualifiedName}()
+            RETURNS TRIGGER AS $$
+            BEGIN
+              NEW.updated_at = now();
+              RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql`,
+          )
+          .execute(db);
+      },
+      async down(db) {
+        await sql.raw(`DROP FUNCTION IF EXISTS ${qualifiedName}()`).execute(db);
+      },
+    },
+  };
+
+  return { getMigrations: async () => migrations };
+}
+
+/**
+ * Runs framework-owned migrations using an inline provider.
  * These run in a separate tracking table (_telaio_migrations) to avoid
  * conflicts with user migrations.
  */
@@ -97,22 +150,21 @@ export async function runFrameworkMigrations(
   // biome-ignore lint/suspicious/noExplicitAny: generic database type
   db: any,
   logger?: Logger,
+  migrationTableSchema?: string,
 ): Promise<MigrationResult[]> {
   const log = logger ?? createLogger({ level: 'warn', pretty: false });
-  const migrationFolder = path.join(
-    path.dirname(new URL(import.meta.url).pathname),
-    'migrations',
-  );
+
+  const schema =
+    migrationTableSchema !== undefined && migrationTableSchema !== 'public'
+      ? migrationTableSchema
+      : undefined;
 
   const migrator = new Migrator({
     db,
-    provider: new FileMigrationProvider({
-      fs,
-      path,
-      migrationFolder,
-    }),
+    provider: createFrameworkMigrationProvider(schema),
     migrationTableName: '_telaio_migrations',
     migrationLockTableName: '_telaio_migrations_lock',
+    ...(schema !== undefined && { migrationTableSchema: schema }),
   });
 
   const { error, results } = await migrator.migrateToLatest();
@@ -185,7 +237,11 @@ export async function migrateToLatest(
   options: MigratorOptions,
 ): Promise<MigrateResult> {
   const log = options.logger ?? createLogger({ level: 'warn', pretty: false });
-  const framework = await runFrameworkMigrations(options.db, log);
+  const framework = await runFrameworkMigrations(
+    options.db,
+    log,
+    options.migrationTableSchema,
+  );
   const migrator = createMigrator(options);
   const { error, results } = await migrator.migrateToLatest();
   const user = collectResults(results, error, 'User', log);
@@ -200,7 +256,11 @@ export async function migrateUp(
   options: MigratorOptions,
 ): Promise<MigrateResult> {
   const log = options.logger ?? createLogger({ level: 'warn', pretty: false });
-  const framework = await runFrameworkMigrations(options.db, log);
+  const framework = await runFrameworkMigrations(
+    options.db,
+    log,
+    options.migrationTableSchema,
+  );
   const migrator = createMigrator(options);
   const { error, results } = await migrator.migrateUp();
   const user = collectResults(results, error, 'User', log);
@@ -215,7 +275,11 @@ export async function migrateDown(
   options: MigratorOptions,
 ): Promise<MigrateResult> {
   const log = options.logger ?? createLogger({ level: 'warn', pretty: false });
-  const framework = await runFrameworkMigrations(options.db, log);
+  const framework = await runFrameworkMigrations(
+    options.db,
+    log,
+    options.migrationTableSchema,
+  );
   const migrator = createMigrator(options);
   const { error, results } = await migrator.migrateDown();
   const user = collectResults(results, error, 'User', log);
