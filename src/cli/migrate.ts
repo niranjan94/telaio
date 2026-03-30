@@ -69,7 +69,11 @@ export function registerMigrateCommand(program: Command): void {
       const db = await getDb(appConfig);
       const migrationDir = path.resolve(options.dir);
 
-      const migrator = createMigrator({ db, migrationsDir: migrationDir });
+      const migrator = createMigrator({
+        db,
+        migrationsDir: migrationDir,
+        ...getMigrationOptions(appConfig),
+      });
       const migrations = await migrator.getMigrations();
 
       if (migrations.length === 0) {
@@ -133,7 +137,11 @@ async function runMigration(
   const db = await getDb(appConfig);
   const migrationDir = path.resolve(options.dir);
 
-  const migratorOptions = { db, migrationsDir: migrationDir };
+  const migratorOptions = {
+    db,
+    migrationsDir: migrationDir,
+    ...getMigrationOptions(appConfig),
+  };
 
   try {
     const { framework, user } =
@@ -156,6 +164,21 @@ async function runMigration(
   }
 
   await db.destroy();
+}
+
+/** Extracts migration table options from the resolved app config. */
+function getMigrationOptions(appConfig: Record<string, unknown>) {
+  return {
+    migrationTableSchema: appConfig.DATABASE_MIGRATION_SCHEMA as
+      | string
+      | undefined,
+    migrationTableName: appConfig.DATABASE_MIGRATION_TABLE as
+      | string
+      | undefined,
+    migrationLockTableName: appConfig.DATABASE_MIGRATION_LOCK_TABLE as
+      | string
+      | undefined,
+  };
 }
 
 /** Gets a Kysely database instance from the resolved app config. */
