@@ -45,6 +45,24 @@ describe('loadConfig', () => {
     expect(config.DATABASE_CAMEL_CASE).toBe(true);
   });
 
+  it('parses DATABASE_POOL_MAX as number from env string', () => {
+    const config = loadConfig({
+      modules: { database: true },
+      skipEnvLoad: true,
+      source: { DATABASE_POOL_MAX: '20' },
+    });
+    expect(config.DATABASE_POOL_MAX).toBe(20);
+  });
+
+  it('leaves DATABASE_POOL_MAX undefined when not set', () => {
+    const config = loadConfig({
+      modules: { database: true },
+      skipEnvLoad: true,
+      source: {},
+    });
+    expect(config.DATABASE_POOL_MAX).toBeUndefined();
+  });
+
   it('parses DATABASE_CAMEL_CASE as boolean from env string', () => {
     const config = loadConfig({
       modules: { database: true },

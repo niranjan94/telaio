@@ -24,6 +24,19 @@ describe('createPool', () => {
     await sql.end();
   });
 
+  it('passes DATABASE_POOL_MAX from config-style object', async () => {
+    const sql = await createPool(
+      {
+        DATABASE_URL: 'postgresql://localhost:5432/test',
+        DATABASE_POOL_MAX: 5,
+      },
+      logger,
+    );
+    expect(sql).toBeDefined();
+    expect(sql.options.max).toBe(5);
+    await sql.end();
+  });
+
   it('falls back to default connection string when DATABASE_URL not provided', async () => {
     const sql = await createPool({}, logger);
     expect(sql).toBeDefined();

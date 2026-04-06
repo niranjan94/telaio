@@ -59,6 +59,7 @@ export const databaseConfigSchema = z.object({
     .min(1)
     .regex(/^[a-zA-Z_][a-zA-Z0-9_]*$/)
     .optional(),
+  DATABASE_POOL_MAX: z.coerce.number().int().positive().optional(),
 });
 
 /** Redis cache config. */

@@ -88,6 +88,7 @@ export async function createPool(
     );
     idleTimeout = 30;
     connectTimeout = 2;
+    max = cfg.DATABASE_POOL_MAX as number | undefined;
   }
 
   return postgres(connectionString, {

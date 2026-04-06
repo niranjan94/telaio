@@ -25,7 +25,7 @@ const pool = await createPool({
 });
 ```
 
-`createPool` accepts either a raw `PoolOptions` object or your loaded config record. When passed a config object it reads the `DATABASE_URL` and `DATABASE_SSL` keys automatically.
+`createPool` accepts either a raw `PoolOptions` object or your loaded config record. When passed a config object it reads the `DATABASE_URL`, `DATABASE_SSL`, and `DATABASE_POOL_MAX` keys automatically.
 
 **Auto-SSL for AWS RDS:** if the connection string contains `rds.amazonaws.com`, SSL is enabled automatically even if you do not set `ssl: true`.
 
