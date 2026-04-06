@@ -24,7 +24,7 @@ async function createPool(
 ): Promise<import('postgres').Sql>
 ```
 
-Creates and configures a postgres.js `Sql` connection. Accepts either explicit `PoolOptions` or a loaded config record. When passed a config record it reads `DATABASE_URL` and `DATABASE_SSL` automatically.
+Creates and configures a postgres.js `Sql` connection. Accepts either explicit `PoolOptions` or a loaded config record. When passed a config record it reads `DATABASE_URL`, `DATABASE_SSL`, and `DATABASE_POOL_MAX` automatically.
 
 **Auto-SSL for AWS RDS:** if the connection string hostname contains `rds.amazonaws.com`, SSL is enabled automatically even without `ssl: true`.
 
