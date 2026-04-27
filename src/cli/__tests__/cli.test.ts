@@ -6,7 +6,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { registerBuildCommand } from '../build.js';
 import { readTelaioConfig } from '../config.js';
 import { registerDbTypesCommand } from '../db-types.js';
-import { registerGenClientCommand, resolveTelaioApp } from '../gen-client.js';
+import {
+  GEN_CLIENT_POST_PROCESSORS,
+  registerGenClientCommand,
+  resolveTelaioApp,
+} from '../gen-client.js';
 import { registerInitCommand } from '../init.js';
 import { registerMigrateCommand } from '../migrate.js';
 
@@ -61,6 +65,25 @@ describe('CLI command registration', () => {
     const cmd = program.commands.find((c) => c.name() === 'gen-client');
     const watchOpt = cmd?.options.find((o) => o.long === '--watch');
     expect(watchOpt).toBeDefined();
+  });
+
+  it('gen-client post-processors use Biome 2 syntax and bypass VCS ignore', () => {
+    // Guards against silently regressing to hey-api's `'biome:lint'` preset,
+    // which still uses Biome 1's `--apply` flag and breaks on Biome 2.x.
+    // Once https://github.com/hey-api/openapi-ts/pull/3812 ships, this test
+    // and the inlined post-processors can be removed.
+    expect(GEN_CLIENT_POST_PROCESSORS).toHaveLength(2);
+
+    for (const processor of GEN_CLIENT_POST_PROCESSORS) {
+      expect(processor.command).toBe('biome');
+      expect(processor.args).toContain('--write');
+      expect(processor.args).not.toContain('--apply');
+      expect(processor.args).toContain('--vcs-use-ignore-file=false');
+      expect(processor.args[processor.args.length - 1]).toBe('{{path}}');
+    }
+
+    expect(GEN_CLIENT_POST_PROCESSORS[0].args[0]).toBe('lint');
+    expect(GEN_CLIENT_POST_PROCESSORS[1].args[0]).toBe('format');
   });
 
   it('db:types command has --watch option', () => {

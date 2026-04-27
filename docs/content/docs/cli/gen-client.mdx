@@ -77,7 +77,10 @@ export const app = await createApp({ config })
 
 ## Output
 
-The generated client is written to the configured `output` directory. If Biome is installed in the project, the output is automatically formatted after generation.
+The generated client is written to the configured `output` directory. After
+generation, `gen-client` runs `biome lint --write` followed by `biome format
+--write` over the output directory so the client matches your project's
+formatting and lint rules.
 
 ```
 client/
@@ -87,6 +90,12 @@ client/
   @tanstack/
     react-query.gen.ts
 ```
+
+<Callout type="info">
+The post-processors pass `--vcs-use-ignore-file=false` so the output directory
+is processed even when it is listed in `.gitignore` (typical for generated
+code) and your `biome.json` has `vcs.useIgnoreFile: true`.
+</Callout>
 
 ## Using the generated client
 

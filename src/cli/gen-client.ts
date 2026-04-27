@@ -12,6 +12,38 @@ const DEFAULT_PLUGINS = [
 ];
 
 /**
+ * Hey-api post-processors that lint and format the generated client with Biome 2.
+ *
+ * Inlined as `UserPostProcessor` objects rather than the built-in `'biome:lint'`
+ * preset because that preset still uses Biome 1's `--apply` flag, which Biome 2.x
+ * removed in favour of `--write`. `--vcs-use-ignore-file=false` ensures generated
+ * directories (commonly listed in `.gitignore`) are still processed regardless of
+ * the consumer's `biome.json` `vcs.useIgnoreFile` setting.
+ *
+ * Temporary until https://github.com/hey-api/openapi-ts/pull/3812 ships, after
+ * which this can revert to the built-in `'biome:lint'` and `'biome:format'`
+ * preset strings (the `--vcs-use-ignore-file=false` workaround for git-ignored
+ * outputs would still need to be supplied separately).
+ */
+const BIOME_LINT_POST_PROCESSOR = {
+  args: ['lint', '--write', '--vcs-use-ignore-file=false', '{{path}}'],
+  command: 'biome',
+  name: 'Biome (Lint)',
+} as const;
+
+const BIOME_FORMAT_POST_PROCESSOR = {
+  args: ['format', '--write', '--vcs-use-ignore-file=false', '{{path}}'],
+  command: 'biome',
+  name: 'Biome (Format)',
+} as const;
+
+/** Post-processors applied to the generated client output. Exported for tests. */
+export const GEN_CLIENT_POST_PROCESSORS = [
+  BIOME_LINT_POST_PROCESSOR,
+  BIOME_FORMAT_POST_PROCESSOR,
+] as const;
+
+/**
  * Resolves a TelaioApp from the given module path.
  * Tries builder functions first (buildFastifyApp, buildApp, build, default),
  * then falls back to pre-built app/default exports.
@@ -129,7 +161,7 @@ export function registerGenClientCommand(program: Command): void {
             output: {
               path: output,
               importFileExtension: '.js',
-              postProcess: ['biome:lint', 'biome:format'],
+              postProcess: GEN_CLIENT_POST_PROCESSORS,
             },
             plugins,
           });
