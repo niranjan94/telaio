@@ -19,6 +19,15 @@ export class Cache {
   // biome-ignore lint/suspicious/noExplicitAny: redis client types vary by version
   public redis: any | null = null;
 
+  /**
+   * True when the cache was constructed in enabled mode and Redis init was
+   * scheduled. Stays true while Redis is connecting, so consumers that need
+   * to decide synchronously (for example wiring an adapter at module init)
+   * do not race against the async connection. Use `redis` to check whether
+   * the underlying client is currently available.
+   */
+  public readonly enabled: boolean;
+
   private _logger: Logger;
   private _initPromise: Promise<void> | null = null;
 
@@ -26,8 +35,8 @@ export class Cache {
     this._logger =
       options?.logger ?? createLogger({ level: 'warn', pretty: false });
 
-    const enabled = options?.enabled ?? true;
-    if (!enabled) {
+    this.enabled = options?.enabled ?? true;
+    if (!this.enabled) {
       this._logger.debug('Cache disabled');
       return;
     }

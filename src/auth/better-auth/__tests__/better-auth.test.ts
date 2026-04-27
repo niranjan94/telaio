@@ -188,14 +188,25 @@ describe('redisSecondaryStorage', () => {
     expect(redisSecondaryStorage(undefined)).toBeUndefined();
   });
 
-  it('returns undefined when cache.redis is falsy', () => {
-    const cache = { redis: null, get: vi.fn(), set: vi.fn(), delete: vi.fn() };
+  it('returns undefined when cache.enabled is false', () => {
+    const cache = {
+      enabled: false,
+      redis: null,
+      get: vi.fn(),
+      set: vi.fn(),
+      delete: vi.fn(),
+    };
     expect(redisSecondaryStorage(cache as never)).toBeUndefined();
   });
 
-  it('returns storage object when cache.redis is truthy', () => {
+  it('returns storage object when cache is enabled even before Redis connects', () => {
+    // Simulates the typical async-init race: the cache is enabled but the
+    // underlying Redis client has not connected yet (`redis === null`).
+    // We still want a storage wrapper because Cache#get/set/delete await
+    // the connection internally.
     const cache = {
-      redis: {},
+      enabled: true,
+      redis: null,
       get: vi.fn().mockResolvedValue('value'),
       set: vi.fn().mockResolvedValue(undefined),
       delete: vi.fn().mockResolvedValue(undefined),
@@ -209,6 +220,7 @@ describe('redisSecondaryStorage', () => {
 
   it('prefixes keys with auth-', async () => {
     const cache = {
+      enabled: true,
       redis: {},
       get: vi.fn().mockResolvedValue('val'),
       set: vi.fn().mockResolvedValue(undefined),

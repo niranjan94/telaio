@@ -130,10 +130,15 @@ export function socialProviders(config: SocialProviderConfig) {
 
 /**
  * Wraps telaio's Cache for better-auth secondary storage (rate limiting, session caching).
- * Returns undefined when cache is unavailable, letting better-auth fall back to defaults.
+ * Returns undefined when caching is disabled, letting better-auth fall back to defaults.
+ *
+ * Checks `cache.enabled` rather than `cache.redis` so the wrapper is returned
+ * even before the async Redis connection completes. The Cache methods await
+ * the underlying init promise internally, so calls made before connection
+ * complete are safe and will resolve once Redis is ready.
  */
 export function redisSecondaryStorage(cache?: Cache | null) {
-  if (!cache?.redis) return undefined;
+  if (!cache?.enabled) return undefined;
   return {
     get: (key: string) => cache.get(`auth-${key}`),
     set: (key: string, value: string, ttl?: number) =>
