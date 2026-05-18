@@ -1,5 +1,5 @@
-import type { Migration } from 'kysely';
 import { sql } from 'kysely';
+import type { Migration } from 'kysely/migration';
 
 /** Creates the citext extension migration. Schema param is accepted for interface consistency but unused (extensions are database-level). */
 export function create(_schema?: string): Migration {

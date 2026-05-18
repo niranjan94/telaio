@@ -1,5 +1,5 @@
-import type { Migration } from 'kysely';
 import { sql } from 'kysely';
+import type { Migration } from 'kysely/migration';
 
 /** Creates the updated_at trigger function migration. When a custom schema is provided, the function is schema-qualified. */
 export function create(schema?: string): Migration {

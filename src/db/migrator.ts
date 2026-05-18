@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { MigrationProvider } from 'kysely';
-import { FileMigrationProvider, Migrator } from 'kysely';
+import type { MigrationProvider } from 'kysely/migration';
+import { FileMigrationProvider, Migrator } from 'kysely/migration';
 import type { Logger } from 'pino';
 import { createLogger } from '../logger/index.js';
 
