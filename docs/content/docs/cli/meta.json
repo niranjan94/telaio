@@ -1,10 +1,4 @@
 {
   "title": "CLI",
-  "pages": [
-    "overview",
-    "init",
-    "migrate",
-    "gen-client",
-    "db-types"
-  ]
+  "pages": ["overview", "init", "migrate", "gen-client", "db-types"]
 }
