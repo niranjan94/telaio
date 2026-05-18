@@ -89,8 +89,6 @@
       "Bash(pnpm install:*)",
       "Bash(git add:*)"
     ],
-    "deny": [
-      "Read(./.entire/metadata/**)"
-    ]
+    "deny": ["Read(./.entire/metadata/**)"]
   }
 }
