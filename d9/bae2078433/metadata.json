@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "d9bae2078433",
+  "strategy": "manual-commit",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/content/docs/api-reference/queue.mdx",
+    "docs/content/docs/modules/queues.mdx",
+    "src/db/client.ts",
+    "src/db/ssl.ts",
+    "src/queue/__tests__/queue.test.ts",
+    "src/queue/client.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/d9/bae2078433/0/metadata.json",
+      "transcript": "/d9/bae2078433/0/full.jsonl",
+      "content_hash": "/d9/bae2078433/0/content_hash.txt",
+      "prompt": "/d9/bae2078433/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 1709,
+    "cache_creation_tokens": 102007,
+    "cache_read_tokens": 2864173,
+    "output_tokens": 17513,
+    "api_call_count": 34
+  }
+}

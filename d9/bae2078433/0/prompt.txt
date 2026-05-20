@@ -1,0 +1,24 @@
+30
+error: no pg_hba.conf entry for host "172.18.110.236", user "vulneron_dev", database "vulneron_dev", no encryption
+2026-05-20T14:01:00.839+05:30
+at /app/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11
+2026-05-20T14:01:00.839+05:30
+at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+2026-05-20T14:01:00.839+05:30
+at async Db.executeSql (file:///app/node_modules/.pnpm/pg-boss@12.18.2/node_modules/pg-boss/dist/db.js:43:16)
+2026-05-20T14:01:00.839+05:30
+at async Contractor.isInstalled (file:///app/node_modules/.pnpm/pg-boss@12.18.2/node_modules/pg-boss/dist/contractor.js:29:24)
+2026-05-20T14:01:00.839+05:30
+at async Contractor.start (file:///app/node_modules/.pnpm/pg-boss@12.18.2/node_modules/pg-boss/dist/contractor.js:33:27)
+2026-05-20T14:01:00.839+05:30
+at async PgBoss.start (file:///app/node_modules/.pnpm/pg-boss@12.18.2/node_modules/pg-boss/dist/index.js:82:13)
+2026-05-20T14:01:00.839+05:30
+at async <anonymous> (/app/node_modules/.pnpm/telaio@1.15.0_9247b066ac483de8e488c7233b19a033/node_modules/telaio/src/queue/client.ts:88:9)
+2026-05-20T14:01:00.839+05:30
+at async <anonymous> (/src/app.ts:17:20)
+2026-05-20T14:01:00.839+05:30
+at async Object.start (/app/node_modules/.pnpm/telaio@1.15.0_9247b066ac483de8e488c7233b19a033/node_modules/telaio/src/builder.ts:495:11)
+2026-05-20T14:01:00.839+05:30
+at async <anonymous> (/src/queues/consumer.ts:15:1) {
+
+because ssl is not enabled

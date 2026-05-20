@@ -1,0 +1,76 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "d9bae2078433",
+  "session_id": "8d5a12db-12ce-4a87-84c5-01a98a87e469",
+  "strategy": "manual-commit",
+  "created_at": "2026-05-20T08:44:13.458795Z",
+  "branch": "main",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "docs/content/docs/api-reference/queue.mdx",
+    "docs/content/docs/modules/queues.mdx",
+    "src/db/client.ts",
+    "src/db/ssl.ts",
+    "src/queue/__tests__/queue.test.ts",
+    "src/queue/client.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "e2e3b2553203",
+  "checkpoint_transcript_start": 167,
+  "transcript_lines_at_start": 167,
+  "token_usage": {
+    "input_tokens": 1709,
+    "cache_creation_tokens": 102007,
+    "cache_read_tokens": 2864173,
+    "output_tokens": 17513,
+    "api_call_count": 34
+  },
+  "session_metrics": {
+    "turn_count": 5
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-05-20T08:44:13.448964Z",
+    "agent_lines": 138,
+    "agent_removed": 31,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 138,
+    "total_lines_changed": 169,
+    "agent_percentage": 100,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 597,
+      "user_lines_removed": 0,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".idea/biome.xml": 9,
+        ".idea/modules.xml": 8,
+        ".idea/ruff.xml": 6,
+        ".idea/telaio.iml": 10,
+        ".idea/vcs.xml": 6,
+        ".idea/workspace.xml": 558
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 601,
+      "user_lines_removed": 0,
+      "agent_lines_added": 138,
+      "agent_lines_removed": 31,
+      "user_added_per_file": {
+        ".idea/biome.xml": 9,
+        ".idea/modules.xml": 8,
+        ".idea/ruff.xml": 6,
+        ".idea/telaio.iml": 10,
+        ".idea/vcs.xml": 6,
+        ".idea/workspace.xml": 562
+      }
+    }
+  ]
+}
