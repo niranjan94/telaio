@@ -29,12 +29,12 @@ export interface DatabaseOptions {
 function shouldEnableSsl(
   connectionString: string,
   explicitSsl?: boolean,
-): { rejectUnauthorized: boolean } | undefined {
-  if (explicitSsl === true) return { rejectUnauthorized: false };
+): 'require' | undefined {
+  if (explicitSsl === true) return 'require';
   if (explicitSsl === false) return undefined;
   // Auto-detect RDS
   if (connectionString.includes('rds.amazonaws.com')) {
-    return { rejectUnauthorized: false };
+    return 'require';
   }
   return undefined;
 }
@@ -61,7 +61,7 @@ export async function createPool(
   const log = poolLogger ?? createLogger({ level: 'warn', pretty: false });
 
   let connectionString: string;
-  let ssl: { rejectUnauthorized: boolean } | undefined;
+  let ssl: 'require' | undefined;
   let idleTimeout: number;
   let connectTimeout: number;
   let max: number | undefined;

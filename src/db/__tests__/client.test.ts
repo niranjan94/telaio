@@ -42,6 +42,89 @@ describe('createPool', () => {
     expect(sql).toBeDefined();
     await sql.end();
   });
+
+  it('leaves ssl disabled for non-RDS connection strings by default', async () => {
+    const sql = await createPool(
+      { connectionString: 'postgresql://localhost:5432/test' },
+      logger,
+    );
+    expect(sql.options.ssl).toBeUndefined();
+    await sql.end();
+  });
+
+  it("sets ssl to 'require' when ssl: true is passed explicitly", async () => {
+    const sql = await createPool(
+      {
+        connectionString: 'postgresql://localhost:5432/test',
+        ssl: true,
+      },
+      logger,
+    );
+    expect(sql.options.ssl).toBe('require');
+    await sql.end();
+  });
+
+  it('leaves ssl disabled when ssl: false is passed explicitly', async () => {
+    const sql = await createPool(
+      {
+        connectionString:
+          'postgresql://user:pw@db.cluster.region.rds.amazonaws.com:5432/test',
+        ssl: false,
+      },
+      logger,
+    );
+    expect(sql.options.ssl).toBeUndefined();
+    await sql.end();
+  });
+
+  it("auto-enables ssl 'require' for RDS hostnames", async () => {
+    const sql = await createPool(
+      {
+        connectionString:
+          'postgresql://user:pw@db.cluster.region.rds.amazonaws.com:5432/test',
+      },
+      logger,
+    );
+    expect(sql.options.ssl).toBe('require');
+    await sql.end();
+  });
+
+  it("auto-enables ssl 'require' for RDS hostnames via config-style object", async () => {
+    const sql = await createPool(
+      {
+        DATABASE_URL:
+          'postgresql://user:pw@db.cluster.region.rds.amazonaws.com:5432/test',
+      },
+      logger,
+    );
+    expect(sql.options.ssl).toBe('require');
+    await sql.end();
+  });
+
+  it("sets ssl to 'require' when DATABASE_SSL is true in config-style object", async () => {
+    const sql = await createPool(
+      {
+        DATABASE_URL: 'postgresql://localhost:5432/test',
+        DATABASE_SSL: true,
+      },
+      logger,
+    );
+    expect(sql.options.ssl).toBe('require');
+    await sql.end();
+  });
+
+  it('disables ssl when DATABASE_SSL is false even for RDS hostnames', async () => {
+    const sql = await createPool(
+      {
+        DATABASE_URL:
+          'postgresql://user:pw@db.cluster.region.rds.amazonaws.com:5432/test',
+        DATABASE_SSL: false,
+      },
+      logger,
+    );
+    expect(sql.options.ssl).toBeUndefined();
+    await sql.end();
+  });
 });
 
 describe('createDatabase', () => {
