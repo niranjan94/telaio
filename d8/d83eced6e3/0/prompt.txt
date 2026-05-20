@@ -1,0 +1,15 @@
+Does postgres have ssl enabled ?
+
+---
+
+I want ssl value to be set to `require` in the case of enable
+
+---
+
+Yes. fix the bug. update tests. retest
+
+---
+
+>Restored ssl in the postgres(connectionString, { ssl, ... }) call options
+This was not the bug. This was accidentally removed by me just before I told you. 
+Check again please

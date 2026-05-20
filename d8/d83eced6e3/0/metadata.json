@@ -1,0 +1,108 @@
+{
+  "cli_version": "0.6.1",
+  "checkpoint_id": "d8d83eced6e3",
+  "session_id": "8d5a12db-12ce-4a87-84c5-01a98a87e469",
+  "strategy": "manual-commit",
+  "created_at": "2026-05-20T06:26:19.616429Z",
+  "branch": "main",
+  "checkpoints_count": 4,
+  "files_touched": [
+    "pnpm-lock.yaml",
+    "src/db/__tests__/client.test.ts",
+    "src/db/client.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-4-7[1m]",
+  "turn_id": "76457b5b84f8",
+  "token_usage": {
+    "input_tokens": 1878,
+    "cache_creation_tokens": 63962,
+    "cache_read_tokens": 1088838,
+    "output_tokens": 20952,
+    "api_call_count": 26
+  },
+  "session_metrics": {
+    "turn_count": 4
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-05-20T06:26:19.610129Z",
+    "agent_lines": 15,
+    "agent_removed": 3,
+    "human_added": 0,
+    "human_modified": 0,
+    "human_removed": 72,
+    "total_committed": 15,
+    "total_lines_changed": 90,
+    "agent_percentage": 20,
+    "metric_version": 2
+  },
+  "prompt_attributions": [
+    {
+      "checkpoint_number": 1,
+      "user_lines_added": 660,
+      "user_lines_removed": 71,
+      "agent_lines_added": 0,
+      "agent_lines_removed": 0,
+      "user_added_per_file": {
+        ".idea/biome.xml": 9,
+        ".idea/modules.xml": 8,
+        ".idea/ruff.xml": 6,
+        ".idea/telaio.iml": 10,
+        ".idea/vcs.xml": 6,
+        ".idea/workspace.xml": 560,
+        "pnpm-lock.yaml": 61
+      },
+      "user_removed_per_file": {
+        "pnpm-lock.yaml": 71
+      }
+    },
+    {
+      "checkpoint_number": 2,
+      "user_lines_added": 599,
+      "user_lines_removed": 1,
+      "agent_lines_added": 61,
+      "agent_lines_removed": 71,
+      "user_added_per_file": {
+        ".idea/biome.xml": 9,
+        ".idea/modules.xml": 8,
+        ".idea/ruff.xml": 6,
+        ".idea/telaio.iml": 10,
+        ".idea/vcs.xml": 6,
+        ".idea/workspace.xml": 560
+      },
+      "user_removed_per_file": {
+        "src/db/client.ts": 1
+      }
+    },
+    {
+      "checkpoint_number": 3,
+      "user_lines_added": 600,
+      "user_lines_removed": 0,
+      "agent_lines_added": 65,
+      "agent_lines_removed": 75,
+      "user_added_per_file": {
+        ".idea/biome.xml": 9,
+        ".idea/modules.xml": 8,
+        ".idea/ruff.xml": 6,
+        ".idea/telaio.iml": 10,
+        ".idea/vcs.xml": 6,
+        ".idea/workspace.xml": 561
+      }
+    },
+    {
+      "checkpoint_number": 4,
+      "user_lines_added": 600,
+      "user_lines_removed": 0,
+      "agent_lines_added": 148,
+      "agent_lines_removed": 75,
+      "user_added_per_file": {
+        ".idea/biome.xml": 9,
+        ".idea/modules.xml": 8,
+        ".idea/ruff.xml": 6,
+        ".idea/telaio.iml": 10,
+        ".idea/vcs.xml": 6,
+        ".idea/workspace.xml": 561
+      }
+    }
+  ]
+}
