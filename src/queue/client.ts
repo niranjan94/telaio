@@ -1,4 +1,5 @@
 import type { Logger } from 'pino';
+import { shouldEnableSsl } from '../db/ssl.js';
 
 /**
  * Options for creating a pg-boss instance.
@@ -9,15 +10,37 @@ export interface QueueClientOptions {
   connectionString?: string;
   /** Schema name for pg-boss tables. Defaults to 'pgboss'. */
   schema?: string;
+  /**
+   * Force SSL on/off. When omitted, SSL is auto-enabled for AWS RDS endpoints.
+   * Forwarded to the underlying pg.Pool used by pg-boss.
+   */
+  ssl?: boolean;
 }
 
-/** Resolves queue options from either direct options or a config-style object. */
+interface ResolvedQueueOptions {
+  connectionString: string;
+  schema: string;
+  ssl?: { rejectUnauthorized: boolean };
+}
+
+/**
+ * Resolves queue options from either direct options or a config-style object.
+ * Exported for testing.
+ */
+export function _resolveQueueOptions(
+  options: QueueClientOptions | Record<string, unknown>,
+): ResolvedQueueOptions {
+  return resolveOptions(options);
+}
+
 function resolveOptions(
   options: QueueClientOptions | Record<string, unknown>,
-): { connectionString: string; schema: string } {
+): ResolvedQueueOptions {
+  const queueOpts = options as QueueClientOptions;
+  const cfg = options as Record<string, unknown>;
+
   const connectionString =
-    (options as QueueClientOptions).connectionString ??
-    (options as Record<string, unknown>).DATABASE_URL;
+    queueOpts.connectionString ?? (cfg.DATABASE_URL as string | undefined);
 
   if (!connectionString || typeof connectionString !== 'string') {
     throw new Error(
@@ -25,9 +48,14 @@ function resolveOptions(
     );
   }
 
+  const explicitSsl =
+    queueOpts.ssl ?? (cfg.DATABASE_SSL as boolean | undefined);
+  const sslEnabled = shouldEnableSsl(connectionString, explicitSsl);
+
   return {
     connectionString,
-    schema: (options as QueueClientOptions).schema ?? 'pgboss',
+    schema: queueOpts.schema ?? 'pgboss',
+    ...(sslEnabled ? { ssl: { rejectUnauthorized: false } } : {}),
   };
 }
 
@@ -76,7 +104,9 @@ export async function getBoss(
         );
       }
 
-      const instance = new PgBossClass(resolved);
+      const instance = new PgBossClass(
+        resolved as unknown as Record<string, unknown>,
+      );
 
       if (typeof instance.on === 'function') {
         instance.on('error', (err: Error) =>

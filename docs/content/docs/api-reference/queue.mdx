@@ -184,8 +184,18 @@ type EmailPayload = JobDataFor<typeof registry, 'send-welcome-email'>;
 
 ```typescript
 interface QueueClientOptions {
-  connectionString: string;
+  connectionString?: string;
+  schema?: string;
+  ssl?: boolean;
 }
 ```
 
-Passed directly to pg-boss. When using a loaded config record instead, `DATABASE_URL` is read automatically.
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `connectionString` | `string` | — | PostgreSQL connection string. Required unless using a config record with `DATABASE_URL`. |
+| `schema` | `string` | `'pgboss'` | Schema name for pg-boss tables. |
+| `ssl` | `boolean` | auto | Force SSL on/off. When omitted, SSL is auto-enabled for AWS RDS endpoints. Forwarded to the underlying `pg.Pool` as `{ rejectUnauthorized: false }`. |
+
+When passed a config record instead, `DATABASE_URL` and `DATABASE_SSL` are read automatically.
+
+**Auto-SSL for AWS RDS:** if the connection string hostname contains `rds.amazonaws.com`, SSL is enabled automatically. An explicit `ssl: false` or `DATABASE_SSL=false` overrides the auto-detect.

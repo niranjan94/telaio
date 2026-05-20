@@ -133,9 +133,14 @@ Pass explicit connection options if your queue database differs from the main po
 
 ```typescript
 .withQueues(registry, {
-  connection: { connectionString: process.env.QUEUE_DATABASE_URL },
+  connection: {
+    connectionString: process.env.QUEUE_DATABASE_URL,
+    ssl: true,
+  },
 })
 ```
+
+**SSL:** queue connections follow the same SSL resolution as the main database pool. SSL is auto-enabled for `rds.amazonaws.com` hostnames; `ssl: true` (or `DATABASE_SSL=true` when using a config record) forces it on, and `ssl: false` forces it off.
 
 ## Types reference
 

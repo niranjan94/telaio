@@ -1,5 +1,6 @@
 import type { Logger } from 'pino';
 import { createLogger } from '../logger/index.js';
+import { shouldEnableSsl } from './ssl.js';
 
 /** Options for creating a PostgreSQL connection pool. */
 export interface PoolOptions {
@@ -20,23 +21,6 @@ export interface DatabaseOptions {
   /** Additional Kysely plugins to register alongside CamelCasePlugin. */
   // biome-ignore lint/suspicious/noExplicitAny: Kysely plugin types vary
   plugins?: any[];
-}
-
-/**
- * Determines whether SSL should be enabled based on the connection string.
- * Auto-enables for AWS RDS endpoints.
- */
-function shouldEnableSsl(
-  connectionString: string,
-  explicitSsl?: boolean,
-): 'require' | undefined {
-  if (explicitSsl === true) return 'require';
-  if (explicitSsl === false) return undefined;
-  // Auto-detect RDS
-  if (connectionString.includes('rds.amazonaws.com')) {
-    return 'require';
-  }
-  return undefined;
 }
 
 /**
@@ -61,7 +45,7 @@ export async function createPool(
   const log = poolLogger ?? createLogger({ level: 'warn', pretty: false });
 
   let connectionString: string;
-  let ssl: 'require' | undefined;
+  let sslEnabled: boolean;
   let idleTimeout: number;
   let connectTimeout: number;
   let max: number | undefined;
@@ -72,7 +56,7 @@ export async function createPool(
   ) {
     const poolOpts = options as PoolOptions;
     connectionString = poolOpts.connectionString;
-    ssl = shouldEnableSsl(connectionString, poolOpts.ssl);
+    sslEnabled = shouldEnableSsl(connectionString, poolOpts.ssl);
     idleTimeout = Math.round((poolOpts.idleTimeoutMillis ?? 30_000) / 1000);
     connectTimeout = Math.round(
       (poolOpts.connectionTimeoutMillis ?? 2_000) / 1000,
@@ -82,7 +66,7 @@ export async function createPool(
     const cfg = options as Record<string, unknown>;
     connectionString =
       (cfg.DATABASE_URL as string | undefined) ?? 'postgresql://localhost/app';
-    ssl = shouldEnableSsl(
+    sslEnabled = shouldEnableSsl(
       connectionString,
       cfg.DATABASE_SSL as boolean | undefined,
     );
@@ -92,7 +76,7 @@ export async function createPool(
   }
 
   return postgres(connectionString, {
-    ssl,
+    ssl: sslEnabled ? 'require' : undefined,
     idle_timeout: idleTimeout,
     connect_timeout: connectTimeout,
     ...(max !== undefined ? { max } : {}),
