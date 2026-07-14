@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import fastify, { type FastifyBaseLogger, type FastifyInstance } from 'fastify';
+import type { WorkOptions } from 'pg-boss';
 import type { Logger } from 'pino';
 import type { AuthAdapter } from './auth/adapter.js';
 import { buildAuthPlugin } from './auth/plugin.js';
@@ -58,9 +59,18 @@ export interface WithCacheOptions {
 }
 
 /** Options for withQueues(). */
-export interface WithQueueOptions {
+export interface WithQueueOptions<
+  TQueues extends QueueRegistry = QueueRegistry,
+> {
   /** pg-boss connection options. If omitted, uses DATABASE_URL from config. */
   connection?: QueueClientOptions;
+  /**
+   * Per-queue pg-boss work options, keyed by queue name. Use this to tune a
+   * queue's concurrency (e.g. `{ localConcurrency: 5 }`), batch size, or
+   * polling independently of the others. Queues omitted here use pg-boss
+   * defaults (a single worker fetching one job at a time).
+   */
+  workOptions?: Partial<Record<keyof TQueues & string, WorkOptions>>;
 }
 
 /** Options passed to createApp(). */
@@ -145,7 +155,7 @@ export class AppBuilder<
    */
   withQueues<TQueues extends QueueRegistry>(
     registry: TQueues,
-    options?: WithQueueOptions,
+    options?: WithQueueOptions<TQueues>,
   ): AppBuilder<F & { queue: true }, TSession, TConfig> {
     this._queueRegistry = registry;
     this._queueOptions = options ?? {};
@@ -482,6 +492,7 @@ export class AppBuilder<
       this._queueOptions?.connection ?? (config as Record<string, unknown>);
     const queueProducer = createQueueProducer(connOpts, logger);
     const queueRegistry = this._queueRegistry;
+    const queueWorkOptions = this._queueOptions?.workOptions;
 
     let shuttingDown = false;
 
@@ -496,7 +507,12 @@ export class AppBuilder<
         }
 
         const boss = await getBoss(connOpts, logger);
-        await registerQueueWorkers(boss, queueRegistry, logger);
+        await registerQueueWorkers(
+          boss,
+          queueRegistry,
+          logger,
+          queueWorkOptions,
+        );
 
         logger.info('consumer started');
 
