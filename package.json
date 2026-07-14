@@ -1,6 +1,6 @@
 {
   "name": "telaio",
-  "version": "1.15.2",
+  "version": "1.15.3",
   "description": "A highly configurable, TypeScript-first Fastify framework",
   "type": "module",
   "files": [
