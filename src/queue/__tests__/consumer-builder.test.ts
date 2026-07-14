@@ -26,6 +26,17 @@ describe('buildConsumer', () => {
     expect((consumer as Record<string, unknown>).fastify).toBeUndefined();
   });
 
+  it('accepts per-queue workOptions and still builds a consumer', async () => {
+    const registry = { testQueue: vi.fn() };
+    const consumer = await createApp({ logger })
+      .withQueues(registry, {
+        workOptions: { testQueue: { localConcurrency: 3 } },
+      })
+      .buildConsumer();
+
+    expect(typeof consumer.start).toBe('function');
+  });
+
   it('fires onStart callbacks in order', async () => {
     const calls: string[] = [];
     const registry = { testQueue: vi.fn() };
