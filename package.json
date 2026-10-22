@@ -236,6 +236,7 @@
     "kysely-postgres-js": "^2.0.0",
     "postgres": "^3.4.9",
     "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "testcontainers": "^11.14.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
